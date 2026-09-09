@@ -1,0 +1,46 @@
+name: werungotok_app
+description: Aplikasi Pelayanan Kelurahan Digital Werungotok
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # Networking
+  http: ^1.2.2
+
+  # State management sederhana
+  provider: ^6.1.2
+
+  # Penyimpanan token login di device
+  shared_preferences: ^2.3.2
+
+  # Pilih foto (KTP, pas foto) dari galeri/kamera
+  image_picker: ^1.1.2
+
+  # Pilih dokumen pendukung (pdf/jpg/png) & file hasil PDF admin
+  file_picker: ^8.1.2
+
+  # Tampilkan gambar dari URL (foto profil, dokumen)
+  cached_network_image: ^3.4.1
+
+  # Format tanggal/angka
+  intl: ^0.19.0
+
+  # Buka file PDF hasil surat / preview
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/

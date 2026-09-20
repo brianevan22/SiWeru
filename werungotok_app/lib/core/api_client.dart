@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'api_config.dart';
 
@@ -24,6 +25,21 @@ class ApiException implements Exception {
 
   @override
   String toString() => firstError;
+}
+
+/// Representasi 1 file untuk diupload lewat bytes (dipakai di Web, di mana
+/// `dart:io File` dengan path tidak tersedia). Untuk Android/iOS/Desktop
+/// tetap bisa pakai `postMultipart` (berbasis path file) seperti biasa.
+class UploadFileBytes {
+  final String field;
+  final Uint8List bytes;
+  final String filename;
+
+  UploadFileBytes({
+    required this.field,
+    required this.bytes,
+    required this.filename,
+  });
 }
 
 class ApiClient {
@@ -89,8 +105,9 @@ class ApiClient {
     return _handle(res);
   }
 
-  /// Kirim request multipart (untuk upload file: foto KTP, dokumen surat, dll).
-  /// [files] berupa map: key field => path file lokal di device.
+  /// Kirim request multipart BERBASIS PATH file lokal di device.
+  /// Cocok untuk Android/iOS/Desktop. TIDAK bisa dipakai di Web
+  /// (pakai [postMultipartBytes] untuk itu).
   Future<dynamic> postMultipart(
     String path, {
     Map<String, String>? fields,
@@ -106,6 +123,34 @@ class ApiClient {
       for (final entry in files.entries) {
         request.files.add(
           await http.MultipartFile.fromPath(entry.key, entry.value),
+        );
+      }
+    }
+
+    final streamed = await request.send();
+    final res = await http.Response.fromStream(streamed);
+    return _handle(res);
+  }
+
+  /// Kirim request multipart BERBASIS BYTES (aman dipakai di Web maupun
+  /// Android/iOS/Desktop). Dipakai untuk upload foto KTP/foto profil saat
+  /// registrasi, karena image_picker di Web tidak menghasilkan path file
+  /// yang bisa dibaca lewat dart:io File.
+  Future<dynamic> postMultipartBytes(
+    String path, {
+    Map<String, String>? fields,
+    List<UploadFileBytes>? files,
+    String method = 'POST',
+  }) async {
+    final request = http.MultipartRequest(method, _uri(path));
+    request.headers.addAll(_headers);
+
+    if (fields != null) request.fields.addAll(fields);
+
+    if (files != null) {
+      for (final f in files) {
+        request.files.add(
+          http.MultipartFile.fromBytes(f.field, f.bytes, filename: f.filename),
         );
       }
     }

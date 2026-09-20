@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             PosyanduSeeder::class,
             BankSampahSeeder::class,
             SuratInfoSeeder::class,
+            MasterKelurahanSeeder::class,
         ]);
     }
 }

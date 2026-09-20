@@ -1,9 +1,10 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
-import '../../services/auth_service.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/loading_button.dart';
 import 'login_screen.dart';
 
@@ -25,8 +26,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscure = true;
   bool _loading = false;
 
-  File? _ktpFile;
-  File? _pasFotoFile;
+  // Disimpan sebagai bytes (bukan File/path) supaya aman dipakai di Web
+  // maupun Android/iOS/Desktop sekaligus.
+  Uint8List? _ktpBytes;
+  String? _ktpFilename;
+  Uint8List? _fotoProfilBytes;
+  String? _fotoProfilFilename;
 
   final _picker = ImagePicker();
 
@@ -36,35 +41,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
       imageQuality: 80,
     );
     if (picked == null) return;
+    final bytes = await picked.readAsBytes();
     setState(() {
       if (isKtp) {
-        _ktpFile = File(picked.path);
+        _ktpBytes = bytes;
+        _ktpFilename = picked.name;
       } else {
-        _pasFotoFile = File(picked.path);
+        _fotoProfilBytes = bytes;
+        _fotoProfilFilename = picked.name;
       }
     });
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_ktpFile == null || _pasFotoFile == null) {
-      _showError('Foto KTP dan Pas Foto wajib diupload.');
+    if (_ktpBytes == null || _fotoProfilBytes == null) {
+      _showError('Foto KTP dan Foto Profil wajib diupload.');
       return;
     }
 
     setState(() => _loading = true);
     try {
-      final client = ApiClient();
-      final authService = AuthService(client);
-      await authService.register(
+      final auth = context.read<AuthProvider>();
+      await auth.register(
         username: _usernameCtrl.text.trim(),
         password: _passwordCtrl.text,
         nama: _namaCtrl.text.trim(),
         wa: _waCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
         alamat: _alamatCtrl.text.trim(),
-        ktpPhotoPath: _ktpFile!.path,
-        pasFotoPath: _pasFotoFile!.path,
+        ktpBytes: _ktpBytes!,
+        ktpFilename: _ktpFilename!,
+        fotoProfilBytes: _fotoProfilBytes!,
+        fotoProfilFilename: _fotoProfilFilename!,
       );
 
       if (!mounted) return;
@@ -92,7 +101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _uploadBox(String label, File? file, VoidCallback onTap) {
+  Widget _uploadBox(String label, Uint8List? bytes, VoidCallback onTap) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -103,7 +112,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.grey.shade300),
           ),
-          child: file == null
+          child: bytes == null
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -118,7 +127,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 )
               : ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.file(file, fit: BoxFit.cover, width: double.infinity),
+                  child: Image.memory(bytes,
+                      fit: BoxFit.cover, width: double.infinity),
                 ),
         ),
       ),
@@ -158,8 +168,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     TextFormField(
                       controller: _waCtrl,
                       keyboardType: TextInputType.phone,
-                      decoration:
-                          const InputDecoration(labelText: 'No. WhatsApp Aktif'),
+                      decoration: const InputDecoration(
+                          labelText: 'No. WhatsApp Aktif'),
                       validator: (v) =>
                           (v == null || v.isEmpty) ? 'Wajib diisi' : null,
                     ),
@@ -184,10 +194,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        _uploadBox('Upload Foto KTP', _ktpFile,
+                        _uploadBox('Upload Foto KTP', _ktpBytes,
                             () => _pickImage(true)),
                         const SizedBox(width: 12),
-                        _uploadBox('Upload Pas Foto', _pasFotoFile,
+                        _uploadBox('Upload Foto Profil', _fotoProfilBytes,
                             () => _pickImage(false)),
                       ],
                     ),
@@ -214,8 +224,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           icon: Icon(_obscure
                               ? Icons.visibility
                               : Icons.visibility_off),
-                          onPressed: () =>
-                              setState(() => _obscure = !_obscure),
+                          onPressed: () => setState(() => _obscure = !_obscure),
                         ),
                       ),
                       validator: (v) => (v == null || v.length < 8)

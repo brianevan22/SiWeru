@@ -1,23 +1,12 @@
 import '../core/api_client.dart';
-import '../models/posyandu_model.dart';
-import '../models/bank_sampah_model.dart';
 import '../models/info_surat_model.dart';
+import '../models/info_surat_setting_model.dart';
 
 /// Kumpulan service untuk konten publik (tanpa perlu login):
-/// jadwal posyandu, info bank sampah, alur pelayanan & syarat surat.
+/// alur pelayanan, syarat surat, serta gambar & keterangan Info Surat.
 class ContentService {
   final ApiClient client;
   ContentService(this.client);
-
-  Future<PosyanduDataModel> posyandu() async {
-    final res = await client.get('/posyandu');
-    return PosyanduDataModel.fromJson(res);
-  }
-
-  Future<BankSampahDataModel> bankSampah() async {
-    final res = await client.get('/bank-sampah');
-    return BankSampahDataModel.fromJson(res);
-  }
 
   Future<List<AlurLangkahModel>> alurPelayanan() async {
     final res = await client.get('/info-surat/alur');
@@ -31,5 +20,10 @@ class ContentService {
     return (res['syarat'] as List)
         .map((e) => SyaratSuratModel.fromJson(e))
         .toList();
+  }
+
+  Future<InfoSuratSettingModel> infoSetting() async {
+    final res = await client.get('/info-surat/settings');
+    return InfoSuratSettingModel.fromJson(res['data']);
   }
 }

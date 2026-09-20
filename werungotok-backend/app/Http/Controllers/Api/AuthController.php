@@ -22,15 +22,31 @@ class AuthController extends Controller
             'password' => ['required', 'string', 'min:8'],
             'nama' => ['required', 'string', 'max:255'],
             'wa' => ['required', 'string', 'max:20'],
-            'email' => ['required', 'email', Rule::unique('users', 'email')],
+            'email' => ['required', 'email', 'regex:/@gmail\.com$/i', Rule::unique('users', 'email')],
             'alamat' => ['required', 'string'],
             'ktp_photo' => ['required', 'image', 'max:4096'],
-            'pas_foto' => ['required', 'image', 'max:4096'],
+            'foto_profil' => ['required', 'image', 'max:4096'],
         ], [
+            // Pesan validasi berbahasa Indonesia yang ramah.
+            'required' => 'Kolom ini wajib diisi.',
             'username.min' => 'Username minimal 8 karakter.',
             'username.regex' => 'Username tidak boleh mengandung spasi.',
-            'username.unique' => 'Username sudah terdaftar.',
+            'username.unique' => 'Username sudah terdaftar. Silakan buat username lain.',
+            'password.min' => 'Password minimal 8 karakter.',
+            'nama.required' => 'Nama lengkap wajib diisi.',
+            'wa.required' => 'Nomor WhatsApp wajib diisi.',
+            'wa.max' => 'Nomor WhatsApp terlalu panjang.',
+            'email.required' => 'Email wajib diisi.',
+            'email.email' => 'Format email tidak valid.',
+            'email.regex' => 'Email harus menggunakan @gmail.com.',
             'email.unique' => 'Email sudah terdaftar.',
+            'alamat.required' => 'Alamat wajib diisi.',
+            'ktp_photo.required' => 'Foto KTP wajib diunggah.',
+            'ktp_photo.image' => 'Foto KTP harus berupa gambar.',
+            'ktp_photo.max' => 'Ukuran foto KTP maksimal 4 MB.',
+            'foto_profil.required' => 'Foto profil wajib diunggah.',
+            'foto_profil.image' => 'Foto profil harus berupa gambar.',
+            'foto_profil.max' => 'Ukuran foto profil maksimal 4 MB.',
         ]);
 
         if ($validator->fails()) {
@@ -38,7 +54,7 @@ class AuthController extends Controller
         }
 
         $ktpPath = $request->file('ktp_photo')->store('ktp', 'public');
-        $pasFotoPath = $request->file('pas_foto')->store('pasfoto', 'public');
+        $fotoProfilPath = $request->file('foto_profil')->store('foto_profil', 'public');
 
         $user = User::create([
             'name' => $request->username,
@@ -48,7 +64,7 @@ class AuthController extends Controller
             'wa' => $request->wa,
             'alamat' => $request->alamat,
             'ktp_photo' => $ktpPath,
-            'pas_foto' => $pasFotoPath,
+            'foto_profil' => $fotoProfilPath,
             'ktp_status' => 'unverified',
             'role' => 'warga',
         ]);
@@ -67,6 +83,8 @@ class AuthController extends Controller
         $validator = Validator::make($request->all(), [
             'username' => ['required', 'string'],
             'password' => ['required', 'string'],
+        ], [
+            'required' => 'Kolom ini wajib diisi.',
         ]);
 
         if ($validator->fails()) {
@@ -81,7 +99,6 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // Hapus token lama supaya tidak menumpuk (opsional, aman untuk 1 sesi aktif per device)
         $token = $user->createToken('werungotok-app')->plainTextToken;
 
         return response()->json([

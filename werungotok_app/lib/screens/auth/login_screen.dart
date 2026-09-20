@@ -4,7 +4,6 @@ import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/loading_button.dart';
-import '../admin/admin_dashboard_screen.dart';
 import '../home/home_screen.dart';
 import 'register_screen.dart';
 
@@ -30,12 +29,10 @@ class _LoginScreenState extends State<LoginScreen> {
       await auth.login(_usernameCtrl.text.trim(), _passwordCtrl.text);
       if (!mounted) return;
 
+      // Semua peran diarahkan ke beranda. Admin masuk Panel Admin
+      // lewat tombol "Kelola Surat" di beranda atau menu drawer.
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (_) => auth.isAdmin
-              ? const AdminDashboardScreen()
-              : const HomeScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
         (route) => false,
       );
     } on ApiException catch (e) {
@@ -73,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           size: 40, color: AppColors.primaryBlue),
                       const SizedBox(height: 8),
                       const Text(
-                        'Login Warga',
+                        'Login SiWeru',
                         style: TextStyle(
                             fontSize: 24, fontWeight: FontWeight.bold),
                       ),

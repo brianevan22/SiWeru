@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../core/api_config.dart';
@@ -9,25 +10,39 @@ import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/surat/info_surat_screen.dart';
-import '../screens/posyandu/posyandu_screen.dart';
-import '../screens/bank_sampah/bank_sampah_screen.dart';
+import '../screens/surat/riwayat_surat_screen.dart';
 import '../screens/profil/profil_screen.dart';
 import '../screens/admin/admin_dashboard_screen.dart';
 
-/// Pengganti header.js + renderHeader() dari template HTML.
-/// Dipakai membungkus semua halaman supaya tampilan header/drawer konsisten.
+/// Indeks tab bawah. -1 berarti halaman tanpa tab aktif.
+class NavTab {
+  static const none = -1;
+  static const layanan = 0;
+  static const beranda = 1;
+  static const riwayat = 2;
+}
+
 class MainScaffold extends StatelessWidget {
+  // title tetap diterima demi kompatibilitas pemanggil lama,
+  // namun header kini selalu menampilkan "Kelurahan Werungotok".
+  // ignore: unused_field
   final String title;
   final Widget body;
   final bool showBackButton;
   final List<Widget>? actions;
+  final int navIndex;
+  final bool showBottomNav;
+  final Widget? floatingActionButton;
 
   const MainScaffold({
     super.key,
-    required this.title,
+    this.title = '',
     required this.body,
     this.showBackButton = false,
     this.actions,
+    this.navIndex = NavTab.none,
+    this.showBottomNav = true,
+    this.floatingActionButton,
   });
 
   @override
@@ -37,73 +52,104 @@ class MainScaffold extends StatelessWidget {
     return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        drawer: const _SidebarDrawer(),
+        extendBody: true,
         appBar: _GlassAppBar(
-          title: title,
           showBackButton: showBackButton,
           user: auth.currentUser,
           actions: actions,
         ),
-        body: SafeArea(child: body),
+        body: SafeArea(bottom: false, child: body),
+        floatingActionButton: floatingActionButton,
+        bottomNavigationBar: showBottomNav
+            ? _BottomBar(currentIndex: navIndex, user: auth.currentUser)
+            : null,
       ),
     );
   }
 }
 
 class _GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final String title;
   final bool showBackButton;
   final UserModel? user;
   final List<Widget>? actions;
 
   const _GlassAppBar({
-    required this.title,
     required this.showBackButton,
     required this.user,
     this.actions,
   });
 
   @override
-  Size get preferredSize => const Size.fromHeight(64);
+  Size get preferredSize => const Size.fromHeight(66);
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: AppBar(
-          backgroundColor: Colors.white.withOpacity(0.85),
+          backgroundColor: Colors.white.withOpacity(0.88),
           elevation: 0,
-          leading: Builder(
-            builder: (ctx) => IconButton(
-              icon: const Icon(Icons.more_vert),
-              onPressed: () => Scaffold.of(ctx).openDrawer(),
-            ),
-          ),
+          automaticallyImplyLeading: false,
+          titleSpacing: 16,
           title: Row(
             children: [
               if (showBackButton)
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.of(context).maybePop(),
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: PressableScale(
+                    onTap: () {
+                      final nav = Navigator.of(context);
+                      if (nav.canPop()) {
+                        nav.maybePop();
+                      } else {
+                        nav.pushAndRemoveUntil(
+                          MaterialPageRoute(builder: (_) => const HomeScreen()),
+                          (route) => false,
+                        );
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryGreen.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.arrow_back_rounded,
+                          size: 20, color: AppColors.primaryGreen),
+                    ),
+                  ),
                 ),
-              const Icon(Icons.location_city, color: AppColors.primaryGreen),
-              const SizedBox(width: 6),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
-                  fontSize: 16,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(9),
+                child: Image.asset(
+                  'assets/images/nganjuk_logo.png',
+                  width: 34,
+                  height: 34,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                      Icons.location_city_rounded,
+                      color: AppColors.primaryGreen),
                 ),
-                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Kelurahan Werungotok',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textDark,
+                    fontSize: 18,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
           actions: [
             ...?actions,
             _ProfileMenu(user: user),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
           ],
         ),
       ),
@@ -118,26 +164,32 @@ class _ProfileMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (user == null) {
-      return TextButton(
-        onPressed: () => Navigator.of(context).push(
+      return PressableScale(
+        onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const LoginScreen()),
         ),
-        style: TextButton.styleFrom(
-          backgroundColor: AppColors.primaryGreen,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppColors.primaryGreen, AppColors.greenLight],
+            ),
+            borderRadius: BorderRadius.circular(22),
           ),
+          child: const Text('Login',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14)),
         ),
-        child: const Text('Login'),
       );
     }
 
-    // Disalin ke variabel lokal supaya Dart bisa melakukan null-promotion
-    // (field publik seperti `user` tidak bisa dipromosikan otomatis).
     final u = user!;
 
     return PopupMenuButton<String>(
+      offset: const Offset(0, 48),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: (value) async {
         if (value == 'profil') {
           Navigator.of(context).push(
@@ -158,21 +210,50 @@ class _ProfileMenu extends StatelessWidget {
         }
       },
       itemBuilder: (context) => [
-        const PopupMenuItem(value: 'profil', child: Text('Pengaturan')),
+        const PopupMenuItem(
+          value: 'profil',
+          child: Row(children: [
+            Icon(Icons.person_rounded, size: 19, color: AppColors.primaryGreen),
+            SizedBox(width: 10),
+            Text('Pengaturan'),
+          ]),
+        ),
         if (u.isAdmin)
-          const PopupMenuItem(value: 'admin', child: Text('Panel Admin')),
-        const PopupMenuItem(value: 'logout', child: Text('Logout')),
+          const PopupMenuItem(
+            value: 'admin',
+            child: Row(children: [
+              Icon(Icons.dashboard_rounded,
+                  size: 19, color: AppColors.primaryBlue),
+              SizedBox(width: 10),
+              Text('Panel Admin'),
+            ]),
+          ),
+        const PopupMenuItem(
+          value: 'logout',
+          child: Row(children: [
+            Icon(Icons.logout_rounded, size: 19, color: AppColors.red),
+            SizedBox(width: 10),
+            Text('Logout'),
+          ]),
+        ),
       ],
-      child: Padding(
-        padding: const EdgeInsets.only(right: 4),
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: [AppColors.primaryGreen, AppColors.lime],
+          ),
+        ),
         child: CircleAvatar(
           radius: 18,
-          backgroundColor: AppColors.primaryGreen.withOpacity(0.2),
-          backgroundImage: (u.pasFoto != null && u.pasFoto != '')
-              ? CachedNetworkImageProvider(ApiConfig.fileUrl(u.pasFoto))
+          backgroundColor: Colors.white,
+          backgroundImage: (u.fotoProfil != null && u.fotoProfil != '')
+              ? CachedNetworkImageProvider(ApiConfig.fileUrl(u.fotoProfil))
               : null,
-          child: (u.pasFoto == null || u.pasFoto == '')
-              ? const Icon(Icons.person, color: AppColors.primaryGreen)
+          child: (u.fotoProfil == null || u.fotoProfil == '')
+              ? const Icon(Icons.person_rounded,
+                  color: AppColors.primaryGreen, size: 22)
               : null,
         ),
       ),
@@ -180,57 +261,191 @@ class _ProfileMenu extends StatelessWidget {
   }
 }
 
-class _SidebarDrawer extends StatelessWidget {
-  const _SidebarDrawer();
+/// Bar bawah 3 menu: Pelayanan Surat — Beranda (menonjol) — Riwayat.
+/// Untuk admin, menu kanan menjadi Panel Admin.
+class _BottomBar extends StatelessWidget {
+  final int currentIndex;
+  final UserModel? user;
+
+  const _BottomBar({required this.currentIndex, required this.user});
+
+  void _go(BuildContext context, Widget page, {bool root = false}) {
+    if (root) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => page),
+        (route) => false,
+      );
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => page),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    Widget item(IconData icon, String label, Color color, Widget page) {
-      return ListTile(
-        leading: Icon(icon, color: color),
-        title: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-        onTap: () {
-          Navigator.of(context).pop();
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
-        },
-      );
-    }
+    final isAdmin = user?.isAdmin ?? false;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
 
-    return Drawer(
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  ClipOval(
-                    child: Image.asset(
-                      'assets/images/nganjuk_logo.png',
-                      width: 40,
-                      height: 40,
-                      fit: BoxFit.cover,
-                    ),
+    return Container(
+      margin: EdgeInsets.fromLTRB(14, 0, 14, 12 + bottomInset),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.greenDark.withOpacity(0.16),
+            blurRadius: 22,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            height: 78,
+            color: Colors.white.withOpacity(0.93),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: _NavItem(
+                    icon: Icons.description_rounded,
+                    label: 'Layanan',
+                    active: currentIndex == NavTab.layanan,
+                    onTap: () => _go(context, const InfoSuratScreen()),
                   ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'Werungotok',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                Expanded(
+                  child: _CenterNavItem(
+                    active: currentIndex == NavTab.beranda,
+                    onTap: () => _go(context, const HomeScreen(), root: true),
                   ),
-                ],
-              ),
+                ),
+                Expanded(
+                  child: isAdmin
+                      ? _NavItem(
+                          icon: Icons.dashboard_rounded,
+                          label: 'Panel',
+                          active: currentIndex == NavTab.riwayat,
+                          onTap: () =>
+                              _go(context, const AdminDashboardScreen()),
+                        )
+                      : _NavItem(
+                          icon: Icons.history_rounded,
+                          label: 'Riwayat',
+                          active: currentIndex == NavTab.riwayat,
+                          onTap: () {
+                            if (user == null) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) => const LoginScreen()),
+                              );
+                            } else {
+                              _go(context, const RiwayatSuratScreen());
+                            }
+                          },
+                        ),
+                ),
+              ],
             ),
-            item(Icons.mark_email_read, 'Pelayanan Surat', AppColors.primaryBlue,
-                const InfoSuratScreen()),
-            item(Icons.child_care, 'Posyandu', AppColors.pink,
-                const PosyanduScreen()),
-            item(Icons.recycling, 'Bank Sampah', AppColors.yellow,
-                const BankSampahScreen()),
-            const Divider(),
-            item(Icons.home, 'Beranda', AppColors.primaryGreen,
-                const HomeScreen()),
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? AppColors.primaryGreen : AppColors.textMuted;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOut,
+            padding:
+                EdgeInsets.symmetric(horizontal: active ? 16 : 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: active
+                  ? AppColors.primaryGreen.withOpacity(0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.5,
+              color: color,
+              fontWeight: active ? FontWeight.bold : FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tombol Beranda di tengah — menonjol seperti aplikasi belanja.
+class _CenterNavItem extends StatelessWidget {
+  final bool active;
+  final VoidCallback onTap;
+
+  const _CenterNavItem({required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: onTap,
+      child: OverflowBox(
+        maxHeight: 100,
+        child: Transform.translate(
+          offset: const Offset(0, 0),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: active
+                    ? [AppColors.primaryGreen, AppColors.lime]
+                    : [AppColors.greenLight, AppColors.limeLight],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primaryGreen.withOpacity(0.45),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+              border: Border.all(color: Colors.white, width: 3.5),
+            ),
+            child:
+                const Icon(Icons.home_rounded, color: Colors.white, size: 27),
+          ),
         ),
       ),
     );

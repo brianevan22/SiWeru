@@ -12,7 +12,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->string('jenis_surat'); // SKCK, KEMATIAN, SKTM, USAHA, DOMISILI, dll
-            $table->string('dokumen_pendukung'); // path file upload warga
+            $table->text('keperluan');
+            $table->json('dokumen_pendukung'); // path file upload warga
             $table->enum('status', ['diproses', 'selesai', 'ditolak'])->default('diproses');
             $table->string('file_hasil')->nullable(); // path PDF hasil dari admin
             $table->text('catatan_admin')->nullable();

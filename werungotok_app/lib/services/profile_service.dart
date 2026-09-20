@@ -14,4 +14,13 @@ class ProfileService {
     final res = await client.put('/profile', body: {'wa': wa});
     return UserModel.fromJson(res['user']);
   }
+
+  /// Ganti foto profil. Kirim path file gambar (jpg/png) via multipart.
+  Future<UserModel> updateFoto(String fotoPath) async {
+    final res = await client.postMultipart(
+      '/profile/foto',
+      files: {'foto_profil': fotoPath},
+    );
+    return UserModel.fromJson(res['user']);
+  }
 }

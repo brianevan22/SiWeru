@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import '../core/api_client.dart';
 import '../models/user_model.dart';
 
@@ -21,10 +22,12 @@ class AuthService {
     required String wa,
     required String email,
     required String alamat,
-    required String ktpPhotoPath,
-    required String pasFotoPath,
+    required Uint8List ktpBytes,
+    required String ktpFilename,
+    required Uint8List fotoProfilBytes,
+    required String fotoProfilFilename,
   }) async {
-    await client.postMultipart(
+    await client.postMultipartBytes(
       '/register',
       fields: {
         'username': username,
@@ -34,10 +37,18 @@ class AuthService {
         'email': email,
         'alamat': alamat,
       },
-      files: {
-        'ktp_photo': ktpPhotoPath,
-        'pas_foto': pasFotoPath,
-      },
+      files: [
+        UploadFileBytes(
+          field: 'ktp_photo',
+          bytes: ktpBytes,
+          filename: ktpFilename,
+        ),
+        UploadFileBytes(
+          field: 'foto_profil',
+          bytes: fotoProfilBytes,
+          filename: fotoProfilFilename,
+        ),
+      ],
     );
   }
 
@@ -45,7 +56,7 @@ class AuthService {
     try {
       await client.post('/logout');
     } catch (_) {
-      // abaikan error logout (misal token sudah kadaluarsa)
+      // Abaikan error logout (misal token sudah kadaluarsa)
     } finally {
       client.setToken(null);
     }

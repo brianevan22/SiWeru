@@ -1,10 +1,15 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_file_downloader/flutter_file_downloader.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/api_client.dart';
+import '../../core/api_config.dart';
 import '../../core/app_theme.dart';
 import '../../models/surat_model.dart';
 import '../../services/admin_service.dart';
+import 'admin_shared.dart';
 
 class AdminSuratTab extends StatefulWidget {
   const AdminSuratTab({super.key});
@@ -30,27 +35,13 @@ class _AdminSuratTabState extends State<AdminSuratTab> {
     });
   }
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'selesai':
-        return AppColors.primaryGreen;
-      case 'ditolak':
-        return AppColors.red;
-      default:
-        return Colors.orange;
-    }
-  }
-
-  void _openProsesDialog(SuratModel surat) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _ProsesSuratSheet(
-        surat: surat,
-        onDone: _reload,
+  Future<void> _openDetail(SuratModel surat) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AdminSuratDetailScreen(surat: surat),
       ),
     );
+    if (changed == true) _reload();
   }
 
   @override
@@ -81,81 +72,79 @@ class _AdminSuratTabState extends State<AdminSuratTab> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  return Center(child: Text('Gagal memuat: ${snapshot.error}'));
+                  return Center(
+                      child: Text('Gagal memuat: ${snapshot.error}',
+                          style: const TextStyle(color: Colors.white)));
                 }
                 final data = snapshot.data!;
                 if (data.isEmpty) {
                   return const Center(
-                      child: Text('Tidak ada pengajuan surat.'));
+                      child: Text('Tidak ada pengajuan surat.',
+                          style: TextStyle(color: Colors.white)));
                 }
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: data.length,
                   itemBuilder: (context, i) {
                     final s = data[i];
+                    // Kartu ringkas: foto profil kecil + nama + status +
+                    // tombol Lihat Berkas. KTP & proses ada di detail.
                     return BubbleCard(
                       margin: const EdgeInsets.only(bottom: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(s.jenisSurat,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () => _openDetail(s),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                SmallAvatar(
+                                    fotoProfil: s.fotoPemohon, radius: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(s.namaSurat,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14)),
+                                      Text(
+                                        s.namaPemohon ?? 'Warga',
                                         style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14)),
-                                    Text(
-                                      '${s.namaPemohon ?? "Warga"} • ${s.waPemohon ?? "-"}',
-                                      style: const TextStyle(
-                                          fontSize: 11.5,
-                                          color: Colors.black54),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color:
-                                      _statusColor(s.status).withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  s.status.toUpperCase(),
-                                  style: TextStyle(
-                                    color: _statusColor(s.status),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 10.5,
+                                            fontSize: 11.5,
+                                            color: Colors.black54),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text('Diajukan: ${s.createdAt}',
-                              style: const TextStyle(
-                                  fontSize: 11, color: Colors.black45)),
-                          if (s.status == 'diproses') ...[
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: () => _openProsesDialog(s),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primaryBlue,
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        statusColor(s.status).withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    s.status.toUpperCase(),
+                                    style: TextStyle(
+                                      color: statusColor(s.status),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 10.5,
+                                    ),
+                                  ),
                                 ),
-                                child: const Text('Proses Surat',
-                                    style: TextStyle(fontSize: 12)),
-                              ),
+                              ],
                             ),
+                            const SizedBox(height: 4),
+                            Text('Diajukan: ${formatTanggal(s.createdAt)}',
+                                style: const TextStyle(
+                                    fontSize: 11, color: Colors.black45)),
                           ],
-                        ],
+                        ),
                       ),
                     );
                   },
@@ -189,11 +178,263 @@ class _AdminSuratTabState extends State<AdminSuratTab> {
   }
 }
 
+/// Halaman detail pengajuan surat: info pemohon, KTP, berkas, dan
+/// tombol proses (selesai/tolak + upload hasil).
+class AdminSuratDetailScreen extends StatefulWidget {
+  final SuratModel surat;
+  const AdminSuratDetailScreen({super.key, required this.surat});
+
+  @override
+  State<AdminSuratDetailScreen> createState() => _AdminSuratDetailScreenState();
+}
+
+class _AdminSuratDetailScreenState extends State<AdminSuratDetailScreen> {
+  bool _changed = false;
+  late String _status;
+  String? _catatan;
+
+  @override
+  void initState() {
+    super.initState();
+    _status = widget.surat.status;
+    _catatan = widget.surat.catatanAdmin;
+  }
+
+  Future<void> _lihatBerkas(String? path) async {
+    final url = ApiConfig.fileUrl(path);
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Berkas tidak tersedia.')));
+      return;
+    }
+    if (url.toLowerCase().endsWith('.pdf')) {
+      final ok =
+          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Tidak bisa membuka PDF: $url')));
+      }
+    } else {
+      showZoomableNetworkImage(context, path, 'Berkas Pendukung');
+    }
+  }
+
+  /// Unduh berkas ke folder Download HP dengan notifikasi.
+  Future<void> _downloadBerkas(String? path) async {
+    final url = ApiConfig.fileUrl(path);
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Berkas tidak tersedia.')));
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Mengunduh berkas...')),
+    );
+    FileDownloader.downloadFile(
+      url: url,
+      name: 'berkas_surat_${widget.surat.id}.pdf',
+      onDownloadCompleted: (savedPath) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Berkas tersimpan, membuka file...'),
+            backgroundColor: AppColors.primaryGreen,
+          ),
+        );
+        OpenFilex.open(savedPath);
+      },
+      onDownloadError: (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengunduh: $error'),
+            backgroundColor: AppColors.red,
+          ),
+        );
+      },
+    );
+  }
+
+  void _openProses() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ProsesSuratSheet(
+        surat: widget.surat,
+        onDone: (status, catatan) {
+          setState(() {
+            _status = status;
+            _catatan = catatan;
+            _changed = true;
+          });
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.surat;
+
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.of(context).pop(_changed);
+        return false;
+      },
+      child: GradientBackground(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            title: const Text('Detail Pengajuan',
+                style: TextStyle(color: Colors.white)),
+            backgroundColor: AppColors.primaryBlue,
+            foregroundColor: Colors.white,
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: BubbleCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => showZoomableNetworkImage(
+                            context, s.fotoPemohon, 'Foto Profil'),
+                        child:
+                            SmallAvatar(fotoProfil: s.fotoPemohon, radius: 28),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(s.namaPemohon ?? 'Warga',
+                                style: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold)),
+                            Text(s.waPemohon ?? '-',
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.black54)),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: statusColor(_status).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(_status.toUpperCase(),
+                            style: TextStyle(
+                                color: statusColor(_status),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10.5)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _sectionTitle('Detail Surat'),
+                  _infoRow('Jenis', s.namaSurat),
+                  _infoRow(
+                      'Keperluan', s.keperluan.isEmpty ? '-' : s.keperluan),
+                  _infoRow('Alamat', s.alamatPemohon ?? '-'),
+                  _infoRow('Diajukan', formatTanggal(s.createdAt)),
+                  if (_catatan != null && _catatan!.isNotEmpty)
+                    _infoRow('Catatan', _catatan!),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed:
+                          (s.ktpPemohon != null && s.ktpPemohon!.isNotEmpty)
+                              ? () => showZoomableNetworkImage(
+                                  context, s.ktpPemohon, 'Foto KTP')
+                              : null,
+                      icon: const Icon(Icons.badge_outlined, size: 18),
+                      label: const Text('Lihat KTP Warga'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primaryGreen,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _lihatBerkas(s.dokumenPendukung),
+                      icon: const Icon(Icons.visibility, size: 18),
+                      label: const Text('Lihat Berkas'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primaryBlue,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _downloadBerkas(s.dokumenPendukung),
+                      icon: const Icon(Icons.download, size: 18),
+                      label: const Text('Download Berkas'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primaryBlue,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  if (_status == 'diproses') ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _openProses,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryBlue,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: const Text('Proses Surat'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String text) => Text(text,
+      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold));
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+              width: 90,
+              child: Text(label,
+                  style:
+                      const TextStyle(fontSize: 12.5, color: Colors.black54))),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+        ],
+      ),
+    );
+  }
+}
+
 /// Bottom sheet form untuk admin memproses 1 pengajuan surat:
 /// pilih status (selesai/ditolak), catatan, dan upload PDF hasil jika selesai.
 class _ProsesSuratSheet extends StatefulWidget {
   final SuratModel surat;
-  final VoidCallback onDone;
+  final void Function(String status, String? catatan) onDone;
 
   const _ProsesSuratSheet({required this.surat, required this.onDone});
 
@@ -206,6 +447,12 @@ class _ProsesSuratSheetState extends State<_ProsesSuratSheet> {
   final _catatanCtrl = TextEditingController();
   PlatformFile? _pdfFile;
   bool _saving = false;
+
+  @override
+  void dispose() {
+    _catatanCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickPdf() async {
     final result = await FilePicker.platform.pickFiles(
@@ -231,16 +478,17 @@ class _ProsesSuratSheetState extends State<_ProsesSuratSheet> {
     setState(() => _saving = true);
     try {
       final service = AdminService(context.read<ApiClient>());
+      final catatan =
+          _catatanCtrl.text.trim().isEmpty ? null : _catatanCtrl.text.trim();
       await service.prosesSurat(
         suratId: widget.surat.id,
         status: _status,
-        catatanAdmin:
-            _catatanCtrl.text.trim().isEmpty ? null : _catatanCtrl.text.trim(),
+        catatanAdmin: catatan,
         fileHasilPath: _pdfFile?.path,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
-      widget.onDone();
+      widget.onDone(_status, catatan);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Surat berhasil dikirim ke warga!'),
@@ -272,7 +520,7 @@ class _ProsesSuratSheetState extends State<_ProsesSuratSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Proses: ${widget.surat.jenisSurat}',
+            Text('Proses: ${widget.surat.namaSurat}',
                 style:
                     const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),

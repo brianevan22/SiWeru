@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -20,7 +19,7 @@ class User extends Authenticatable
         'wa',
         'alamat',
         'ktp_photo',
-        'pas_foto',
+        'foto_profil', // <-- Sudah diubah dari pas_foto ke foto_profil
         'ktp_status',
         'role',
     ];

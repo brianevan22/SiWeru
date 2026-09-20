@@ -12,6 +12,7 @@ class SuratPengajuan extends Model
     protected $fillable = [
         'user_id',
         'jenis_surat',
+        'keperluan',
         'dokumen_pendukung',
         'status',
         'file_hasil',

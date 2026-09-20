@@ -26,7 +26,7 @@ class WerungotokApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'Werungotok',
+        title: 'SiWeru',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         home: const SplashScreen(),

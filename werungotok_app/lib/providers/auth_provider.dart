@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
@@ -50,8 +51,6 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> login(String username, String password) async {
     final user = await _authService.login(username, password);
-    // AuthService.login sudah memanggil client.setToken(...) di dalamnya,
-    // jadi token terbaru bisa langsung diambil dari client.
     currentUser = user;
     token = client.token;
     status = AuthStatus.loggedIn;
@@ -61,6 +60,33 @@ class AuthProvider extends ChangeNotifier {
       await prefs.setString('token', token!);
     }
     notifyListeners();
+  }
+
+  /// Dipanggil dari halaman pendaftaran warga
+  Future<void> register({
+    required String username,
+    required String password,
+    required String nama,
+    required String wa,
+    required String email,
+    required String alamat,
+    required Uint8List ktpBytes,
+    required String ktpFilename,
+    required Uint8List fotoProfilBytes,
+    required String fotoProfilFilename,
+  }) async {
+    await _authService.register(
+      username: username,
+      password: password,
+      nama: nama,
+      wa: wa,
+      email: email,
+      alamat: alamat,
+      ktpBytes: ktpBytes,
+      ktpFilename: ktpFilename,
+      fotoProfilBytes: fotoProfilBytes,
+      fotoProfilFilename: fotoProfilFilename,
+    );
   }
 
   Future<void> logout() async {

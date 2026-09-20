@@ -1,11 +1,17 @@
 class AlurLangkahModel {
+  final int id;
   final String judulLangkah;
   final String deskripsi;
 
-  AlurLangkahModel({required this.judulLangkah, required this.deskripsi});
+  AlurLangkahModel({
+    required this.id,
+    required this.judulLangkah,
+    required this.deskripsi,
+  });
 
   factory AlurLangkahModel.fromJson(Map<String, dynamic> json) {
     return AlurLangkahModel(
+      id: json['id'] ?? 0,
       judulLangkah: json['judul_langkah'] ?? '',
       deskripsi: json['deskripsi'] ?? '',
     );

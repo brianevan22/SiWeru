@@ -5,7 +5,8 @@ import 'admin_warga_tab.dart';
 import 'admin_surat_tab.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+  final int initialTab;
+  const AdminDashboardScreen({super.key, this.initialTab = 0});
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
@@ -18,7 +19,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 1),
+    );
   }
 
   @override
@@ -31,23 +36,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   Widget build(BuildContext context) {
     return MainScaffold(
       title: 'Panel Admin',
+      showBackButton: true,
+      navIndex: NavTab.riwayat,
       body: Column(
         children: [
           Container(
             margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.7),
               borderRadius: BorderRadius.circular(30),
             ),
             child: TabBar(
               controller: _tabController,
+              indicatorSize: TabBarIndicatorSize.tab,
               indicator: BoxDecoration(
                 color: AppColors.primaryGreen,
-                borderRadius: BorderRadius.circular(30),
+                borderRadius: BorderRadius.circular(26),
               ),
               labelColor: Colors.white,
               unselectedLabelColor: AppColors.textDark,
               dividerColor: Colors.transparent,
+              labelStyle:
+                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
               tabs: const [
                 Tab(text: 'Verifikasi Warga'),
                 Tab(text: 'Kelola Surat'),

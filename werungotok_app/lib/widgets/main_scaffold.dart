@@ -49,22 +49,63 @@ class MainScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
 
-    return GradientBackground(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        extendBody: true,
-        appBar: _GlassAppBar(
-          showBackButton: showBackButton,
-          user: auth.currentUser,
-          actions: actions,
+    return WillPopScope(
+      onWillPop: () => _handleBack(context),
+      child: GradientBackground(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          extendBody: true,
+          appBar: _GlassAppBar(
+            showBackButton: showBackButton,
+            user: auth.currentUser,
+            actions: actions,
+          ),
+          body: SafeArea(bottom: false, child: body),
+          floatingActionButton: floatingActionButton,
+          bottomNavigationBar: showBottomNav
+              ? _BottomBar(currentIndex: navIndex, user: auth.currentUser)
+              : null,
         ),
-        body: SafeArea(bottom: false, child: body),
-        floatingActionButton: floatingActionButton,
-        bottomNavigationBar: showBottomNav
-            ? _BottomBar(currentIndex: navIndex, user: auth.currentUser)
-            : null,
       ),
     );
+  }
+
+  /// Tombol kembali HP:
+  /// - kalau ada halaman di belakang → kembali biasa
+  /// - kalau tidak & bukan beranda → ke beranda
+  /// - kalau di beranda → konfirmasi keluar aplikasi
+  Future<bool> _handleBack(BuildContext context) async {
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      return true; // biarkan pop normal
+    }
+    if (navIndex != NavTab.beranda) {
+      nav.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (route) => false,
+      );
+      return false;
+    }
+    // Di beranda → tanya keluar aplikasi
+    final keluar = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Keluar Aplikasi?'),
+        content: const Text('Apakah Anda ingin keluar dari aplikasi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.red),
+            child: const Text('Keluar'),
+          ),
+        ],
+      ),
+    );
+    return keluar ?? false;
   }
 }
 
@@ -200,6 +241,26 @@ class _ProfileMenu extends StatelessWidget {
             MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
           );
         } else if (value == 'logout') {
+          final yakin = await showDialog<bool>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('Keluar Akun?'),
+              content: const Text('Anda akan keluar dari akun ini.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Batal'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style:
+                      ElevatedButton.styleFrom(backgroundColor: AppColors.red),
+                  child: const Text('Logout'),
+                ),
+              ],
+            ),
+          );
+          if (yakin != true) return;
           await context.read<AuthProvider>().logout();
           if (context.mounted) {
             Navigator.of(context).pushAndRemoveUntil(

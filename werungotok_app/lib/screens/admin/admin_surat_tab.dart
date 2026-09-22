@@ -83,7 +83,7 @@ class _AdminSuratTabState extends State<AdminSuratTab> {
                           style: TextStyle(color: Colors.white)));
                 }
                 return ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
                   itemCount: data.length,
                   itemBuilder: (context, i) {
                     final s = data[i];
@@ -447,6 +447,7 @@ class _ProsesSuratSheetState extends State<_ProsesSuratSheet> {
   final _catatanCtrl = TextEditingController();
   PlatformFile? _pdfFile;
   bool _saving = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -460,20 +461,44 @@ class _ProsesSuratSheetState extends State<_ProsesSuratSheet> {
       allowedExtensions: ['pdf'],
     );
     if (result != null && result.files.isNotEmpty) {
-      setState(() => _pdfFile = result.files.first);
+      setState(() {
+        _pdfFile = result.files.first;
+        _error = null;
+      });
     }
   }
 
   Future<void> _submit() async {
     if (_status == 'selesai' && (_pdfFile == null || _pdfFile!.path == null)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Upload file PDF hasil surat terlebih dahulu.'),
-          backgroundColor: AppColors.red,
-        ),
-      );
+      setState(() => _error = 'Upload file PDF hasil surat terlebih dahulu.');
       return;
     }
+    setState(() => _error = null);
+
+    final yakin = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Kirim ke Warga?'),
+        content: Text(_status == 'selesai'
+            ? 'Surat akan ditandai SELESAI dan hasilnya dikirim ke warga.'
+            : 'Pengajuan akan ditandai DITOLAK dan warga akan diberi tahu.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: _status == 'selesai'
+                    ? AppColors.primaryGreen
+                    : AppColors.red),
+            child: const Text('Ya, Kirim'),
+          ),
+        ],
+      ),
+    );
+    if (yakin != true) return;
 
     setState(() => _saving = true);
     try {
@@ -533,7 +558,10 @@ class _ProsesSuratSheetState extends State<_ProsesSuratSheet> {
                     contentPadding: EdgeInsets.zero,
                     title:
                         const Text('Selesai', style: TextStyle(fontSize: 13)),
-                    onChanged: (v) => setState(() => _status = v!),
+                    onChanged: (v) => setState(() {
+                      _status = v!;
+                      _error = null;
+                    }),
                   ),
                 ),
                 Expanded(
@@ -543,7 +571,10 @@ class _ProsesSuratSheetState extends State<_ProsesSuratSheet> {
                     contentPadding: EdgeInsets.zero,
                     title:
                         const Text('Ditolak', style: TextStyle(fontSize: 13)),
-                    onChanged: (v) => setState(() => _status = v!),
+                    onChanged: (v) => setState(() {
+                      _status = v!;
+                      _error = null;
+                    }),
                   ),
                 ),
               ],
@@ -582,6 +613,30 @@ class _ProsesSuratSheetState extends State<_ProsesSuratSheet> {
                 labelText: 'Catatan untuk warga (opsional)',
               ),
             ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline_rounded,
+                        color: Colors.red.shade700, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(_error!,
+                          style: TextStyle(
+                              color: Colors.red.shade800, fontSize: 13)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,

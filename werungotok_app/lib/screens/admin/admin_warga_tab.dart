@@ -73,7 +73,7 @@ class _AdminWargaTabState extends State<AdminWargaTab> {
             return const Center(child: Text('Belum ada warga terdaftar.'));
           }
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
             itemCount: data.length,
             itemBuilder: (context, i) {
               final w = data[i];
@@ -161,6 +161,32 @@ class _AdminWargaDetailScreenState extends State<AdminWargaDetailScreen> {
     } finally {
       if (mounted) setState(() => _processing = false);
     }
+  }
+
+  /// Setujui KTP dengan konfirmasi.
+  Future<void> _setujui() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Setujui KTP?'),
+        content: const Text(
+            'KTP warga akan ditandai valid dan warga bisa mengajukan surat.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryGreen),
+            child: const Text('Setujui'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    _verifikasi('valid');
   }
 
   /// Tolak KTP: minta alasan dulu, alasan tampil di akun warga.
@@ -361,7 +387,7 @@ class _AdminWargaDetailScreenState extends State<AdminWargaDetailScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () => _verifikasi('valid'),
+                            onPressed: () => _setujui(),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primaryGreen,
                               padding: const EdgeInsets.symmetric(vertical: 12),

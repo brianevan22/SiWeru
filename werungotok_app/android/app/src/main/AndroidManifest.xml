@@ -2,6 +2,7 @@
     <!-- Izin unduh berkas ke folder Download (Android 9 ke bawah).
          Android 10+ tidak butuh izin ini karena memakai MediaStore. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <application
         android:label="SiWeru"

@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
@@ -83,13 +84,12 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
   }
 
   Future<void> _uploadKtpUlang() async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png'],
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      imageQuality: 80,
     );
-    if (picked == null || picked.files.isEmpty) return;
-    final path = picked.files.first.path;
-    if (path == null) return;
+    if (picked == null) return;
+    final path = picked.path;
 
     setState(() => _uploadingKtp = true);
     try {
@@ -164,6 +164,15 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
       return;
     }
 
+    final yakin = await _konfirmasi(
+      judul: 'Kirim Pengajuan?',
+      pesan:
+          'Pastikan jenis surat, keperluan, dan berkas sudah benar sebelum dikirim.',
+      labelYa: 'Kirim',
+      warnaYa: AppColors.primaryBlue,
+    );
+    if (yakin != true) return;
+
     setState(() => _submitting = true);
     try {
       final client = context.read<ApiClient>();
@@ -191,6 +200,32 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  Future<bool?> _konfirmasi({
+    required String judul,
+    required String pesan,
+    required String labelYa,
+    required Color warnaYa,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(judul),
+        content: Text(pesan),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: warnaYa),
+            child: Text(labelYa),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSnack(String msg, Color color) {

@@ -26,8 +26,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscure = true;
   bool _loading = false;
 
-  // Disimpan sebagai bytes (bukan File/path) supaya aman dipakai di Web
-  // maupun Android/iOS/Desktop sekaligus.
   Uint8List? _ktpBytes;
   String? _ktpFilename;
   Uint8List? _fotoProfilBytes;
@@ -37,7 +35,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _pickImage(bool isKtp) async {
     final picked = await _picker.pickImage(
-      source: ImageSource.gallery,
+      // KTP langsung dari kamera agar foto asli; profil boleh dari galeri.
+      source: isKtp ? ImageSource.camera : ImageSource.gallery,
       imageQuality: 80,
     );
     if (picked == null) return;
@@ -101,12 +100,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _uploadBox(String label, Uint8List? bytes, VoidCallback onTap) {
+  Widget _uploadBox(
+      String label, IconData icon, Uint8List? bytes, VoidCallback onTap) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          height: 100,
+          height: 110,
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.5),
             borderRadius: BorderRadius.circular(12),
@@ -117,8 +117,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.upload_file, color: Colors.grey),
-                      const SizedBox(height: 4),
+                      Icon(icon, color: AppColors.primaryGreen),
+                      const SizedBox(height: 6),
                       Text(label,
                           style: const TextStyle(fontSize: 11),
                           textAlign: TextAlign.center),
@@ -194,10 +194,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        _uploadBox('Upload Foto KTP', _ktpBytes,
+                        _uploadBox(
+                            'Foto KTP\n(Kamera)',
+                            Icons.camera_alt_rounded,
+                            _ktpBytes,
                             () => _pickImage(true)),
                         const SizedBox(width: 12),
-                        _uploadBox('Upload Foto Profil', _fotoProfilBytes,
+                        _uploadBox(
+                            'Foto Profil\n(Galeri)',
+                            Icons.photo_library_rounded,
+                            _fotoProfilBytes,
                             () => _pickImage(false)),
                       ],
                     ),

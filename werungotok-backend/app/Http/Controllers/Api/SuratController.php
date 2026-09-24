@@ -140,8 +140,11 @@ class SuratController extends Controller
 
         $pathUtama = null;
         if ($request->hasFile('dokumen_pendukung')) {
-            $pathUtama = $request->file('dokumen_pendukung')
-                ->store('surat/dokumen_pendukung', 'public');
+            $pathUtama = $this->simpanBerkas(
+                $request->file('dokumen_pendukung'),
+                'berkas_pendukung',
+                'surat/dokumen_pendukung'
+            );
         }
 
         $surat = SuratPengajuan::create([
@@ -159,7 +162,7 @@ class SuratController extends Controller
                 SuratBerkas::create([
                     'surat_pengajuan_id' => $surat->id,
                     'syarat_key' => $key,
-                    'file_path' => $file->store('surat/berkas', 'public'),
+                    'file_path' => $this->simpanBerkas($file, $key, 'surat/berkas'),
                 ]);
             }
         }
@@ -174,5 +177,29 @@ class SuratController extends Controller
             'message' => $pesanSukses,
             'data' => $surat->load('berkas'),
         ], 201);
+    }
+
+    /**
+     * Simpan berkas dengan nama yang menjelaskan syaratnya dan
+     * ekstensi yang benar (pdf/jpg/png), supaya admin bisa membuka
+     * maupun mengunduhnya dengan tepat.
+     */
+    private function simpanBerkas($file, string $syaratKey, string $folder): string
+    {
+        // Ekstensi asli; kalau tidak terbaca, tebak dari isi file.
+        $ext = strtolower($file->getClientOriginalExtension());
+        if ($ext === '') {
+            $ext = strtolower($file->extension() ?: 'dat');
+        }
+
+        $nama = preg_replace('/[^a-z0-9_]+/i', '_', $syaratKey);
+        $nama = trim($nama, '_');
+        if ($nama === '') {
+            $nama = 'berkas';
+        }
+
+        $namaFile = $nama . '_' . time() . '_' . uniqid() . '.' . $ext;
+
+        return $file->storeAs($folder, $namaFile, 'public');
     }
 }

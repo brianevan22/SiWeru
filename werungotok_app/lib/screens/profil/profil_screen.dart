@@ -66,6 +66,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
       context,
       sumber: ImageSource.gallery,
       judul: 'Sesuaikan Foto Profil',
+      namaKeluaran: 'Foto Profil',
     );
     if (path == null) return;
 

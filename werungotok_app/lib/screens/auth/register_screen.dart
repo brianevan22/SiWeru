@@ -40,6 +40,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       context,
       sumber: isKtp ? ImageSource.camera : ImageSource.gallery,
       judul: isKtp ? 'Sesuaikan Foto KTP' : 'Sesuaikan Foto Profil',
+      namaKeluaran: isKtp ? 'KTP' : 'Foto Profil',
     );
     if (path == null) return;
 

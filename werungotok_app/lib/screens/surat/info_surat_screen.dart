@@ -63,6 +63,7 @@ class _InfoSuratScreenState extends State<InfoSuratScreen> {
       context,
       sumber: ImageSource.gallery,
       judul: alur ? 'Sesuaikan Gambar Alur' : 'Sesuaikan Gambar Syarat',
+      namaKeluaran: alur ? 'Gambar Alur' : 'Gambar Syarat',
     );
     if (path == null) return;
 

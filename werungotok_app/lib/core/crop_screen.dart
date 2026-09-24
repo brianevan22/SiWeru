@@ -1,4 +1,7 @@
 import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'app_theme.dart';
@@ -13,10 +16,15 @@ class CropScreen extends StatefulWidget {
   final String sourcePath;
   final String judul;
 
+  /// Nama dasar untuk file hasil (mis. "Pengantar RT") agar berkas
+  /// tidak bernama "crop_...." dan mudah dikenali admin.
+  final String namaKeluaran;
+
   const CropScreen({
     super.key,
     required this.sourcePath,
     this.judul = 'Sesuaikan Foto',
+    this.namaKeluaran = 'foto',
   });
 
   @override
@@ -108,31 +116,47 @@ class _CropScreenState extends State<CropScreen> {
 
   /// Potong gambar sesuai bingkai lalu kembalikan path hasilnya.
   Future<void> _simpan() async {
-    if (_crop == null) return;
+    if (_crop == null || _lebarAsli == null) return;
     setState(() => _menyimpan = true);
     try {
-      final bytes = await File(widget.sourcePath).readAsBytes();
-      final asli = img.decodeImage(bytes);
-      if (asli == null) {
+      // Ubah koordinat tampilan -> koordinat piksel gambar asli.
+      final skala = _lebarAsli! / _areaGambar.width;
+      final c = _crop!;
+      final x = (c.left * skala).round().clamp(0, _lebarAsli! - 1);
+      final y = (c.top * skala).round().clamp(0, _tinggiAsli! - 1);
+      final w = (c.width * skala).round().clamp(1, _lebarAsli! - x);
+      final h = (c.height * skala).round().clamp(1, _tinggiAsli! - y);
+
+      // Bila bingkai hampir sama dengan foto utuh, pakai file asli saja
+      // supaya cepat (tidak perlu decode & encode ulang).
+      final hampirPenuh =
+          x <= 2 && y <= 2 && w >= _lebarAsli! - 4 && h >= _tinggiAsli! - 4;
+      if (hampirPenuh) {
         if (mounted) Navigator.of(context).pop(widget.sourcePath);
         return;
       }
 
-      // Ubah koordinat tampilan -> koordinat piksel gambar asli.
-      final skala = asli.width / _areaGambar.width;
-      // Catatan: _areaGambar memakai rasio yang sama dengan gambar asli.
-      final c = _crop!;
-      final x = (c.left * skala).round().clamp(0, asli.width - 1);
-      final y = (c.top * skala).round().clamp(0, asli.height - 1);
-      final w = (c.width * skala).round().clamp(1, asli.width - x);
-      final h = (c.height * skala).round().clamp(1, asli.height - y);
+      final bytes = await File(widget.sourcePath).readAsBytes();
 
-      final hasil = img.copyCrop(asli, x: x, y: y, width: w, height: h);
+      // Proses potong dijalankan di luar UI agar aplikasi tidak macet.
+      final hasilBytes = await compute(
+        _potongDiLatar,
+        _ParamPotong(bytes: bytes, x: x, y: y, w: w, h: h),
+      );
+
+      if (hasilBytes == null) {
+        if (mounted) Navigator.of(context).pop(widget.sourcePath);
+        return;
+      }
 
       final dir = File(widget.sourcePath).parent.path;
-      final nama = 'crop_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final namaDasar = widget.namaKeluaran
+          .replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_')
+          .replaceAll(RegExp(r'^_+|_+$'), '');
+      final nama =
+          '${namaDasar.isEmpty ? 'foto' : namaDasar}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final tujuan = File('$dir/$nama');
-      await tujuan.writeAsBytes(img.encodeJpg(hasil, quality: 90));
+      await tujuan.writeAsBytes(hasilBytes);
 
       if (mounted) Navigator.of(context).pop(tujuan.path);
     } catch (_) {
@@ -402,4 +426,25 @@ class _SelubungPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SelubungPainter old) => old.crop != crop;
+}
+
+/// Parameter untuk proses potong di isolate terpisah.
+class _ParamPotong {
+  final Uint8List bytes;
+  final int x, y, w, h;
+  const _ParamPotong({
+    required this.bytes,
+    required this.x,
+    required this.y,
+    required this.w,
+    required this.h,
+  });
+}
+
+/// Dijalankan di luar UI (isolate) supaya aplikasi tetap lancar.
+Uint8List? _potongDiLatar(_ParamPotong p) {
+  final asli = img.decodeImage(p.bytes);
+  if (asli == null) return null;
+  final hasil = img.copyCrop(asli, x: p.x, y: p.y, width: p.w, height: p.h);
+  return Uint8List.fromList(img.encodeJpg(hasil, quality: 88));
 }

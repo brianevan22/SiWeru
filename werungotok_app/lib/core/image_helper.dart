@@ -11,6 +11,7 @@ Future<String?> pilihDanPotongFoto(
   BuildContext context, {
   required ImageSource sumber,
   String judul = 'Sesuaikan Foto',
+  String namaKeluaran = 'foto',
 }) async {
   final picked = await ImagePicker().pickImage(
     source: sumber,
@@ -19,7 +20,8 @@ Future<String?> pilihDanPotongFoto(
   if (picked == null) return null;
   if (!context.mounted) return null;
 
-  return potongFoto(context, picked.path, judul: judul);
+  return potongFoto(context, picked.path,
+      judul: judul, namaKeluaran: namaKeluaran);
 }
 
 /// Potong file gambar yang sudah ada (mis. hasil FilePicker).
@@ -28,10 +30,15 @@ Future<String?> potongFoto(
   BuildContext context,
   String path, {
   String judul = 'Sesuaikan Foto',
+  String namaKeluaran = 'foto',
 }) {
   return Navigator.of(context).push<String>(
     MaterialPageRoute(
-      builder: (_) => CropScreen(sourcePath: path, judul: judul),
+      builder: (_) => CropScreen(
+        sourcePath: path,
+        judul: judul,
+        namaKeluaran: namaKeluaran,
+      ),
       fullscreenDialog: true,
     ),
   );

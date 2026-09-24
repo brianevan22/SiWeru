@@ -94,6 +94,7 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
       context,
       sumber: ImageSource.camera,
       judul: 'Sesuaikan Foto KTP',
+      namaKeluaran: 'KTP',
     );
     if (path == null) return;
 
@@ -128,8 +129,13 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
     var file = result.files.first;
 
     if (file.path != null && adalahGambar(file.path!)) {
-      final dipotong =
-          await potongFoto(context, file.path!, judul: 'Sesuaikan Berkas');
+      final label = _formatSyaratLabel(syaratKey);
+      final dipotong = await potongFoto(
+        context,
+        file.path!,
+        judul: 'Sesuaikan $label',
+        namaKeluaran: label,
+      );
       if (dipotong == null) return; // dibatalkan
       file = PlatformFile(
         name: dipotong.split(Platform.pathSeparator).last,
@@ -150,8 +156,12 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
     var file = result.files.first;
 
     if (file.path != null && adalahGambar(file.path!)) {
-      final dipotong =
-          await potongFoto(context, file.path!, judul: 'Sesuaikan Berkas');
+      final dipotong = await potongFoto(
+        context,
+        file.path!,
+        judul: 'Sesuaikan Berkas',
+        namaKeluaran: 'Berkas Pendukung',
+      );
       if (dipotong == null) return;
       file = PlatformFile(
         name: dipotong.split(Platform.pathSeparator).last,

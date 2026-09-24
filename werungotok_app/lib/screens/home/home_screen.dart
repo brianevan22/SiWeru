@@ -308,6 +308,7 @@ class _PosyanduCardState extends State<_PosyanduCard> {
       context,
       sumber: ImageSource.gallery,
       judul: 'Sesuaikan Jadwal Posyandu',
+      namaKeluaran: 'Jadwal Posyandu',
     );
     if (path == null) return;
     try {

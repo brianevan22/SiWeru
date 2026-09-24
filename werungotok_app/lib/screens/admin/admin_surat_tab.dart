@@ -9,6 +9,7 @@ import '../../core/api_config.dart';
 import '../../core/app_theme.dart';
 import '../../models/surat_model.dart';
 import '../../services/admin_service.dart';
+import '../surat/jenis_surat_form.dart';
 import 'admin_shared.dart';
 
 class AdminSuratTab extends StatefulWidget {
@@ -220,19 +221,22 @@ class _AdminSuratDetailScreenState extends State<AdminSuratDetailScreen> {
   }
 
   /// Unduh berkas ke folder Download HP dengan notifikasi.
-  Future<void> _downloadBerkas(String? path) async {
+  Future<void> _downloadBerkas(String? path, [String label = 'berkas']) async {
     final url = ApiConfig.fileUrl(path);
     if (url.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Berkas tidak tersedia.')));
       return;
     }
+    // Pertahankan ekstensi asli (pdf/jpg/png).
+    final ext = url.contains('.') ? url.split('.').last.toLowerCase() : 'pdf';
+    final namaFile = '${label.replaceAll(' ', '_')}_${widget.surat.id}.$ext';
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Mengunduh berkas...')),
     );
     FileDownloader.downloadFile(
       url: url,
-      name: 'berkas_surat_${widget.surat.id}.pdf',
+      name: namaFile,
       onDownloadCompleted: (savedPath) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -343,6 +347,37 @@ class _AdminSuratDetailScreenState extends State<AdminSuratDetailScreen> {
                   _infoRow('Diajukan', formatTanggal(s.createdAt)),
                   if (_catatan != null && _catatan!.isNotEmpty)
                     _infoRow('Catatan', _catatan!),
+                  // Penanda surat bermaterai.
+                  if (s.perluMaterai) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.amber.shade300),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.sticky_note_2_rounded,
+                              size: 18, color: Colors.amber.shade800),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Surat bermaterai — hubungi warga lewat WhatsApp '
+                              'untuk datang ke kelurahan menandatangani dan '
+                              'menempel materai sebelum surat diselesaikan.',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.amber.shade900,
+                                  height: 1.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
@@ -360,32 +395,25 @@ class _AdminSuratDetailScreenState extends State<AdminSuratDetailScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _lihatBerkas(s.dokumenPendukung),
-                      icon: const Icon(Icons.visibility, size: 18),
-                      label: const Text('Lihat Berkas'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primaryBlue,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
+                  const SizedBox(height: 16),
+                  _sectionTitle('Berkas Persyaratan'),
+                  const SizedBox(height: 8),
+                  // Berkas terpisah per syarat.
+                  if (s.berkas.isNotEmpty)
+                    ...s.berkas.map((b) => _berkasRow(
+                          label: formatSyaratLabel(b.syaratKey),
+                          path: b.filePath,
+                        ))
+                  else if (s.dokumenPendukung.isNotEmpty)
+                    _berkasRow(
+                        label: 'Berkas Pendukung', path: s.dokumenPendukung)
+                  else
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text('Tidak ada berkas terlampir.',
+                          style:
+                              TextStyle(fontSize: 13, color: Colors.black54)),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _downloadBerkas(s.dokumenPendukung),
-                      icon: const Icon(Icons.download, size: 18),
-                      label: const Text('Download Berkas'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primaryBlue,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
                   if (_status == 'diproses') ...[
                     const SizedBox(height: 12),
                     SizedBox(
@@ -405,6 +433,47 @@ class _AdminSuratDetailScreenState extends State<AdminSuratDetailScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Satu baris berkas: nama syarat + tombol lihat & unduh.
+  Widget _berkasRow({required String label, required String path}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(
+              path.toLowerCase().endsWith('.pdf')
+                  ? Icons.picture_as_pdf_rounded
+                  : Icons.image_rounded,
+              size: 20,
+              color: AppColors.primaryBlue),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(label,
+                style:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+          ),
+          IconButton(
+            tooltip: 'Lihat',
+            icon: const Icon(Icons.visibility,
+                size: 20, color: AppColors.primaryBlue),
+            onPressed: () => _lihatBerkas(path),
+          ),
+          IconButton(
+            tooltip: 'Unduh',
+            icon: const Icon(Icons.download_rounded,
+                size: 20, color: AppColors.primaryGreen),
+            onPressed: () => _downloadBerkas(path, label),
+          ),
+        ],
       ),
     );
   }

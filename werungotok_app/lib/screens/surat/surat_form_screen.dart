@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
+import '../../core/image_helper.dart';
 import '../../models/surat_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/surat_service.dart';
@@ -25,6 +28,8 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
   List<JenisSuratModel> _listJenisSurat = [];
   final _keperluanController = TextEditingController();
   PlatformFile? _dokumen;
+  // Berkas per syarat: kunci = syarat_key, nilai = file terpilih.
+  final Map<String, PlatformFile> _berkas = {};
   bool _submitting = false;
 
   StatusKtpResult? _statusKtp;
@@ -84,12 +89,13 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
   }
 
   Future<void> _uploadKtpUlang() async {
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.camera,
-      imageQuality: 80,
+    // Ambil dari kamera lalu potong agar pas & sebagai konfirmasi.
+    final path = await pilihDanPotongFoto(
+      context,
+      sumber: ImageSource.camera,
+      judul: 'Sesuaikan Foto KTP',
     );
-    if (picked == null) return;
-    final path = picked.path;
+    if (path == null) return;
 
     setState(() => _uploadingKtp = true);
     try {
@@ -111,14 +117,49 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
     }
   }
 
+  /// Pilih berkas untuk satu syarat. Menerima PDF maupun foto.
+  /// Kalau yang dipilih foto, dipotong dulu agar rapi dan terbaca.
+  Future<void> _pickBerkas(String syaratKey) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+    );
+    if (result == null || result.files.isEmpty) return;
+    var file = result.files.first;
+
+    if (file.path != null && adalahGambar(file.path!)) {
+      final dipotong =
+          await potongFoto(context, file.path!, judul: 'Sesuaikan Berkas');
+      if (dipotong == null) return; // dibatalkan
+      file = PlatformFile(
+        name: dipotong.split(Platform.pathSeparator).last,
+        path: dipotong,
+        size: await File(dipotong).length(),
+      );
+    }
+    setState(() => _berkas[syaratKey] = file);
+  }
+
+  /// Berkas tunggal untuk surat yang tidak punya daftar syarat.
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf'],
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
     );
-    if (result != null && result.files.isNotEmpty) {
-      setState(() => _dokumen = result.files.first);
+    if (result == null || result.files.isEmpty) return;
+    var file = result.files.first;
+
+    if (file.path != null && adalahGambar(file.path!)) {
+      final dipotong =
+          await potongFoto(context, file.path!, judul: 'Sesuaikan Berkas');
+      if (dipotong == null) return;
+      file = PlatformFile(
+        name: dipotong.split(Platform.pathSeparator).last,
+        path: dipotong,
+        size: await File(dipotong).length(),
+      );
     }
+    setState(() => _dokumen = file);
   }
 
   /// Ubah "pengantar_rt_rw" -> "Pengantar RT/RW" agar mudah dibaca.
@@ -155,19 +196,37 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedJenisSurat == null) {
+    final jenis = _selectedJenisSurat;
+    if (jenis == null) {
       _showSnack('Pilih jenis surat terlebih dahulu.', AppColors.red);
       return;
     }
-    if (_dokumen == null || _dokumen!.path == null) {
-      _showSnack('Dokumen pendukung wajib diupload.', AppColors.red);
+
+    final syarat = jenis.syaratRequired;
+    final pakaiSyarat = syarat.isNotEmpty;
+
+    if (pakaiSyarat) {
+      // Pastikan semua syarat sudah diunggah.
+      for (final key in syarat) {
+        final f = _berkas[key];
+        if (f == null || f.path == null) {
+          _showSnack('Berkas "${_formatSyaratLabel(key)}" belum diunggah.',
+              AppColors.red);
+          return;
+        }
+      }
+    } else if (_dokumen == null || _dokumen!.path == null) {
+      _showSnack('Berkas pendukung wajib diunggah.', AppColors.red);
       return;
     }
 
     final yakin = await _konfirmasi(
       judul: 'Kirim Pengajuan?',
-      pesan:
-          'Pastikan jenis surat, keperluan, dan berkas sudah benar sebelum dikirim.',
+      pesan: jenis.perluMaterai
+          ? 'Surat ini memerlukan materai. Setelah diproses, Anda akan '
+              'dihubungi admin lewat WhatsApp untuk datang ke kelurahan '
+              'menandatangani dan menempel materai. Lanjutkan?'
+          : 'Pastikan jenis surat, keperluan, dan berkas sudah benar sebelum dikirim.',
       labelYa: 'Kirim',
       warnaYa: AppColors.primaryBlue,
     );
@@ -178,15 +237,19 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
       final client = context.read<ApiClient>();
       final service = SuratService(client);
       await service.ajukan(
-        jenisSurat: _selectedJenisSurat!.kode,
+        jenisSurat: jenis.kode,
         keperluan: _keperluanController.text.trim(),
         clientTime: DateTime.now().toUtc().toIso8601String(),
-        dokumenPath: _dokumen!.path!,
+        berkas:
+            pakaiSyarat ? {for (final k in syarat) k: _berkas[k]!.path!} : null,
+        dokumenPath: pakaiSyarat ? null : _dokumen!.path!,
       );
 
       if (!mounted) return;
       _showSnack(
-        'Proses pengajuan surat berhasil, menunggu proses validasi.',
+        jenis.perluMaterai
+            ? 'Pengajuan berhasil. Anda akan dihubungi admin untuk urusan materai.'
+            : 'Proses pengajuan surat berhasil, menunggu proses validasi.',
         AppColors.primaryGreen,
       );
       Navigator.of(context).pushAndRemoveUntil(
@@ -374,7 +437,12 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
                       ),
                     ))
                 .toList(),
-            onChanged: (v) => setState(() => _selectedJenisSurat = v),
+            onChanged: (v) => setState(() {
+              _selectedJenisSurat = v;
+              // Berkas direset karena syaratnya berbeda tiap jenis surat.
+              _berkas.clear();
+              _dokumen = null;
+            }),
             validator: (v) => v == null ? 'Pilih jenis surat' : null,
             decoration: const InputDecoration(hintText: '-- Pilih Jenis --'),
           ),
@@ -422,6 +490,37 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
               ),
             ),
           ],
+          // Peringatan bila surat memerlukan materai.
+          if (_selectedJenisSurat?.perluMaterai == true) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.shade300),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.sticky_note_2_rounded,
+                      size: 18, color: Colors.amber.shade800),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Surat ini memerlukan materai. Sebelum surat jadi, Anda '
+                      'akan dihubungi admin melalui WhatsApp untuk datang ke '
+                      'kelurahan menandatangani dan menempel materai.',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.amber.shade900,
+                          height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           const Text('Keperluan',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
@@ -451,7 +550,7 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
           const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.only(bottom: 8),
+            margin: const EdgeInsets.only(bottom: 10),
             decoration: BoxDecoration(
               color: Colors.orange.shade50,
               borderRadius: BorderRadius.circular(10),
@@ -465,8 +564,8 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'Gabungkan semua berkas persyaratan menjadi satu file PDF, '
-                    'lalu unggah di sini.',
+                    'Unggah setiap berkas sesuai kolomnya. Boleh berupa foto '
+                    '(JPG/PNG) atau PDF, maksimal 4 MB per berkas.',
                     style:
                         TextStyle(fontSize: 12, color: Colors.orange.shade900),
                   ),
@@ -474,36 +573,117 @@ class _SuratFormScreenState extends State<SuratFormScreen> {
               ],
             ),
           ),
-          InkWell(
-            onTap: _pickFile,
-            child: Container(
-              padding: const EdgeInsets.all(14),
+          // Kolom upload mengikuti syarat jenis surat yang dipilih.
+          if (_selectedJenisSurat == null)
+            Container(
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.6),
+                color: Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.grey.shade300),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.picture_as_pdf, color: Colors.grey),
-                  const SizedBox(width: 10),
+                  Icon(Icons.arrow_upward_rounded,
+                      size: 18, color: Colors.grey.shade600),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      _dokumen?.name ?? 'Pilih file PDF (maks 4MB)',
-                      style: const TextStyle(fontSize: 13),
-                      overflow: TextOverflow.ellipsis,
+                      'Pilih jenis surat terlebih dahulu untuk melihat berkas '
+                      'apa saja yang perlu diunggah.',
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          color: Colors.grey.shade700,
+                          height: 1.4),
                     ),
                   ),
                 ],
               ),
+            )
+          else if (_selectedJenisSurat!.syaratRequired.isNotEmpty)
+            ..._selectedJenisSurat!.syaratRequired.map(
+              (key) => _uploadBox(
+                label: _formatSyaratLabel(key),
+                file: _berkas[key],
+                onTap: () => _pickBerkas(key),
+              ),
+            )
+          else
+            _uploadBox(
+              label: 'Berkas Pendukung',
+              file: _dokumen,
+              onTap: _pickFile,
             ),
-          ),
           const SizedBox(height: 24),
           LoadingButton(
             isLoading: _submitting,
             label: 'Kirim Permohonan',
             color: AppColors.primaryBlue,
             onPressed: _submit,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Satu kotak upload untuk satu berkas.
+  Widget _uploadBox({
+    required String label,
+    required PlatformFile? file,
+    required VoidCallback onTap,
+  }) {
+    final sudah = file != null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 5),
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: sudah
+                    ? Colors.green.shade50
+                    : Colors.white.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: sudah
+                        ? AppColors.primaryGreen.withOpacity(0.5)
+                        : Colors.grey.shade300),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                      sudah
+                          ? Icons.check_circle_rounded
+                          : Icons.upload_file_rounded,
+                      size: 20,
+                      color: sudah ? AppColors.primaryGreen : Colors.grey),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      file?.name ?? 'Pilih foto atau PDF',
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          color: sudah ? AppColors.textDark : Colors.black54),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (sudah)
+                    const Text('Ganti',
+                        style: TextStyle(
+                            fontSize: 11.5,
+                            color: AppColors.primaryBlue,
+                            fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
           ),
         ],
       ),

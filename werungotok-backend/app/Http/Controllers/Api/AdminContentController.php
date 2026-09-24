@@ -75,6 +75,7 @@ class AdminContentController extends Controller
         $validator = Validator::make($request->all(), [
             'nama_surat' => ['required', 'string', 'max:255'],
             'keterangan' => ['nullable', 'string', 'max:2000'],
+            'perlu_materai' => ['nullable'],
             'syarat_required' => ['array'],
             'syarat_required.*' => ['string', 'max:255'],
             'is_active' => ['nullable'],
@@ -90,6 +91,7 @@ class AdminContentController extends Controller
         return [
             'nama_surat' => $request->nama_surat,
             'keterangan' => $request->keterangan,
+            'perlu_materai' => $request->boolean('perlu_materai', false),
             'syarat_required' => array_values(array_filter(
                 $syarat,
                 fn ($s) => trim((string) $s) !== ''

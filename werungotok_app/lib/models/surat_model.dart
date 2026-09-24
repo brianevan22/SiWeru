@@ -5,6 +5,7 @@ class JenisSuratModel {
   final String? keterangan;
   final List<String> syaratRequired;
   final bool isActive;
+  final bool perluMaterai;
 
   JenisSuratModel({
     required this.id,
@@ -13,6 +14,7 @@ class JenisSuratModel {
     this.keterangan,
     required this.syaratRequired,
     this.isActive = true,
+    this.perluMaterai = false,
   });
 
   factory JenisSuratModel.fromJson(Map<String, dynamic> json) {
@@ -27,6 +29,28 @@ class JenisSuratModel {
       isActive: json['is_active'] == null
           ? true
           : (json['is_active'] == true || json['is_active'] == 1),
+      perluMaterai: json['perlu_materai'] == true || json['perlu_materai'] == 1,
+    );
+  }
+}
+
+/// Satu berkas persyaratan yang diunggah warga.
+class BerkasModel {
+  final int id;
+  final String syaratKey;
+  final String filePath;
+
+  BerkasModel({
+    required this.id,
+    required this.syaratKey,
+    required this.filePath,
+  });
+
+  factory BerkasModel.fromJson(Map<String, dynamic> json) {
+    return BerkasModel(
+      id: json['id'] ?? 0,
+      syaratKey: json['syarat_key'] ?? '',
+      filePath: json['file_path'] ?? '',
     );
   }
 }
@@ -51,6 +75,10 @@ class SuratModel {
   final String? ktpPemohon; // path foto KTP warga
   final String? ktpStatusPemohon;
 
+  /// Berkas persyaratan yang diunggah terpisah.
+  final List<BerkasModel> berkas;
+  final bool perluMaterai;
+
   SuratModel({
     required this.id,
     required this.userId,
@@ -68,6 +96,8 @@ class SuratModel {
     this.fotoPemohon,
     this.ktpPemohon,
     this.ktpStatusPemohon,
+    this.berkas = const [],
+    this.perluMaterai = false,
   });
 
   factory SuratModel.fromJson(Map<String, dynamic> json) {
@@ -89,6 +119,11 @@ class SuratModel {
       fotoPemohon: user?['foto_profil'],
       ktpPemohon: user?['ktp_photo'],
       ktpStatusPemohon: user?['ktp_status'],
+      berkas: (json['berkas'] as List?)
+              ?.map((e) => BerkasModel.fromJson(e))
+              .toList() ??
+          const [],
+      perluMaterai: json['perlu_materai'] == true || json['perlu_materai'] == 1,
     );
   }
 }

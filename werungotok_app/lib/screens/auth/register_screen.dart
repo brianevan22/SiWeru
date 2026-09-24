@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/app_theme.dart';
+import '../../core/image_helper.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/loading_button.dart';
 import 'login_screen.dart';
@@ -31,23 +33,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Uint8List? _fotoProfilBytes;
   String? _fotoProfilFilename;
 
-  final _picker = ImagePicker();
-
   Future<void> _pickImage(bool isKtp) async {
-    final picked = await _picker.pickImage(
-      // KTP langsung dari kamera agar foto asli; profil boleh dari galeri.
-      source: isKtp ? ImageSource.camera : ImageSource.gallery,
-      imageQuality: 80,
+    // KTP langsung dari kamera agar foto asli; profil boleh dari galeri.
+    // Setelah dipilih, foto dipotong dulu agar pas & sebagai konfirmasi.
+    final path = await pilihDanPotongFoto(
+      context,
+      sumber: isKtp ? ImageSource.camera : ImageSource.gallery,
+      judul: isKtp ? 'Sesuaikan Foto KTP' : 'Sesuaikan Foto Profil',
     );
-    if (picked == null) return;
-    final bytes = await picked.readAsBytes();
+    if (path == null) return;
+
+    final file = File(path);
+    final bytes = await file.readAsBytes();
+    final namaFile = path.split(Platform.pathSeparator).last;
+
     setState(() {
       if (isKtp) {
         _ktpBytes = bytes;
-        _ktpFilename = picked.name;
+        _ktpFilename = namaFile;
       } else {
         _fotoProfilBytes = bytes;
-        _fotoProfilFilename = picked.name;
+        _fotoProfilFilename = namaFile;
       }
     });
   }

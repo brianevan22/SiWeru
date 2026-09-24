@@ -15,6 +15,7 @@ class JenisSurat extends Model
         'kode',
         'nama_surat',
         'keterangan',
+        'perlu_materai',
         'syarat_required',
         'is_active',
     ];
@@ -22,5 +23,6 @@ class JenisSurat extends Model
     protected $casts = [
         'syarat_required' => 'array',
         'is_active' => 'boolean',
+        'perlu_materai' => 'boolean',
     ];
 }

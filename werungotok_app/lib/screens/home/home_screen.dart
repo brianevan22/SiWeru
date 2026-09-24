@@ -1,10 +1,11 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/api_config.dart';
 import '../../core/app_theme.dart';
+import '../../core/image_helper.dart';
 import '../../models/info_surat_setting_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/admin_service.dart';
@@ -121,48 +122,7 @@ class HomeScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    InkWell(
-                      onTap: () => _zoomGambar(
-                          context,
-                          'assets/images/alur_pelayanan.png',
-                          'Alur Pelayanan Digital'),
-                      borderRadius: BorderRadius.circular(18),
-                      child: Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
-                            child: Image.asset(
-                              'assets/images/alur_pelayanan.png',
-                              width: double.infinity,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                          Positioned(
-                            right: 8,
-                            bottom: 8,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.55),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.zoom_in_map_rounded,
-                                      color: Colors.white, size: 15),
-                                  SizedBox(width: 4),
-                                  Text('Ketuk untuk perbesar',
-                                      style: TextStyle(
-                                          color: Colors.white, fontSize: 10.5)),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    const _AlurGambar(),
                     const SizedBox(height: 16),
                     if (isAdmin)
                       Row(
@@ -269,49 +229,6 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-/// Buka gambar aset penuh layar dengan zoom & geser.
-void _zoomGambar(BuildContext context, String assetPath, String title) {
-  showDialog(
-    context: context,
-    builder: (_) => Dialog(
-      backgroundColor: Colors.black,
-      insetPadding: EdgeInsets.zero,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: InteractiveViewer(
-              minScale: 0.5,
-              maxScale: 5,
-              child: Center(
-                child: Image.asset(assetPath, fit: BoxFit.contain),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 40,
-            left: 12,
-            child: Text(
-              title,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15),
-            ),
-          ),
-          Positioned(
-            top: 32,
-            right: 8,
-            child: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white, size: 28),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
 /// Tombol sekunder bergaya lembut, senada tema.
 class _SoftButton extends StatelessWidget {
   final String label;
@@ -385,12 +302,13 @@ class _PosyanduCardState extends State<_PosyanduCard> {
   }
 
   Future<void> _editFoto() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png'],
+    // Pilih dari galeri lalu potong. Layar crop juga jadi konfirmasi,
+    // sehingga foto tidak langsung terganti bila tak sengaja tertekan.
+    final path = await pilihDanPotongFoto(
+      context,
+      sumber: ImageSource.gallery,
+      judul: 'Sesuaikan Jadwal Posyandu',
     );
-    if (result == null || result.files.isEmpty) return;
-    final path = result.files.first.path;
     if (path == null) return;
     try {
       await AdminService(context.read<ApiClient>())
@@ -464,17 +382,32 @@ class _PosyanduCardState extends State<_PosyanduCard> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(18),
-                      child: Image(
-                        image: provider,
-                        width: double.infinity,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => Container(
-                          height: 140,
-                          color: Colors.grey.shade200,
-                          alignment: Alignment.center,
-                          child: const Text('Gambar jadwal belum tersedia'),
-                        ),
-                      ),
+                      child: url.isEmpty
+                          ? Image.asset(
+                              'assets/images/jadwal_posyandu.jpg',
+                              width: double.infinity,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => Container(
+                                height: 140,
+                                color: Colors.grey.shade200,
+                                alignment: Alignment.center,
+                                child:
+                                    const Text('Gambar jadwal belum tersedia'),
+                              ),
+                            )
+                          : FadeInImage(
+                              placeholder: const AssetImage(
+                                  'assets/images/jadwal_posyandu.jpg'),
+                              image: NetworkImage(url),
+                              width: double.infinity,
+                              fit: BoxFit.contain,
+                              fadeInDuration: const Duration(milliseconds: 250),
+                              imageErrorBuilder: (_, __, ___) => Image.asset(
+                                'assets/images/jadwal_posyandu.jpg',
+                                width: double.infinity,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
                     ),
                     Positioned(
                       right: 8,
@@ -592,4 +525,94 @@ void _zoomGambarProvider(
       ),
     ),
   );
+}
+
+/// Gambar Alur Pelayanan di beranda — diambil dari server agar sama
+/// dengan yang diatur admin di halaman Informasi Surat.
+class _AlurGambar extends StatefulWidget {
+  const _AlurGambar();
+
+  @override
+  State<_AlurGambar> createState() => _AlurGambarState();
+}
+
+class _AlurGambarState extends State<_AlurGambar> {
+  late Future<InfoSuratSettingModel> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = ContentService(context.read<ApiClient>()).infoSetting();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<InfoSuratSettingModel>(
+      future: _future,
+      builder: (context, snapshot) {
+        final url = ApiConfig.fileUrl(snapshot.data?.gambarAlur);
+        final ImageProvider provider = url.isNotEmpty
+            ? NetworkImage(url)
+            : const AssetImage('assets/images/alur_pelayanan.png')
+                as ImageProvider;
+        return InkWell(
+          onTap: () =>
+              _zoomGambarProvider(context, provider, 'Alur Pelayanan Digital'),
+          borderRadius: BorderRadius.circular(18),
+          child: Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: url.isEmpty
+                    // Belum ada gambar dari admin: pakai bawaan aplikasi.
+                    ? Image.asset(
+                        'assets/images/alur_pelayanan.png',
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                      )
+                    // Tampilkan bawaan dulu (instan), lalu berganti halus
+                    // ke gambar server begitu selesai dimuat.
+                    : FadeInImage(
+                        placeholder: const AssetImage(
+                            'assets/images/alur_pelayanan.png'),
+                        image: NetworkImage(url),
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                        fadeInDuration: const Duration(milliseconds: 250),
+                        imageErrorBuilder: (_, __, ___) => Image.asset(
+                          'assets/images/alur_pelayanan.png',
+                          width: double.infinity,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+              ),
+              Positioned(
+                right: 8,
+                bottom: 8,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.55),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.zoom_in_map_rounded,
+                          color: Colors.white, size: 15),
+                      SizedBox(width: 4),
+                      Text('Ketuk untuk perbesar',
+                          style:
+                              TextStyle(color: Colors.white, fontSize: 10.5)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }

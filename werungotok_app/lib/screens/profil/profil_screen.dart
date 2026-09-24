@@ -1,9 +1,10 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/api_config.dart';
 import '../../core/app_theme.dart';
+import '../../core/image_helper.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/profile_service.dart';
 import '../../widgets/main_scaffold.dart';
@@ -60,12 +61,12 @@ class _ProfilScreenState extends State<ProfilScreen> {
   }
 
   Future<void> _gantiFoto() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png'],
+    // Pilih dari galeri lalu potong agar pas; sekaligus jadi konfirmasi.
+    final path = await pilihDanPotongFoto(
+      context,
+      sumber: ImageSource.gallery,
+      judul: 'Sesuaikan Foto Profil',
     );
-    if (result == null || result.files.isEmpty) return;
-    final path = result.files.first.path;
     if (path == null) return;
 
     setState(() => _uploadingFoto = true);

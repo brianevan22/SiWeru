@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\JenisSurat;
+use App\Models\SuratBerkas;
 use App\Models\SuratPengajuan;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -41,17 +42,22 @@ class SuratController extends Controller
     }
 
     /**
-     * Riwayat pengajuan warga yang login, dilengkapi nama surat
-     * (bukan hanya kode) agar mudah dibaca.
+     * Riwayat pengajuan warga yang login, dilengkapi nama surat & berkas.
      */
     public function index(Request $request)
     {
-        $surat = $request->user()->suratPengajuans()->latest()->get();
-        $map = JenisSurat::pluck('nama_surat', 'kode');
+        $surat = $request->user()->suratPengajuans()
+            ->with('berkas')
+            ->latest()
+            ->get();
 
-        $data = $surat->map(function ($s) use ($map) {
+        $jenis = JenisSurat::get()->keyBy('kode');
+
+        $data = $surat->map(function ($s) use ($jenis) {
             $arr = $s->toArray();
-            $arr['nama_surat'] = $map[$s->jenis_surat] ?? $s->jenis_surat;
+            $j = $jenis[$s->jenis_surat] ?? null;
+            $arr['nama_surat'] = $j->nama_surat ?? $s->jenis_surat;
+            $arr['perlu_materai'] = (bool) ($j->perlu_materai ?? false);
             return $arr;
         });
 
@@ -64,13 +70,21 @@ class SuratController extends Controller
             return response()->json(['message' => 'Tidak diizinkan.'], 403);
         }
 
+        $surat->load('berkas');
+        $j = JenisSurat::where('kode', $surat->jenis_surat)->first();
+
         $arr = $surat->toArray();
-        $arr['nama_surat'] = JenisSurat::where('kode', $surat->jenis_surat)
-            ->value('nama_surat') ?? $surat->jenis_surat;
+        $arr['nama_surat'] = $j->nama_surat ?? $surat->jenis_surat;
+        $arr['perlu_materai'] = (bool) ($j->perlu_materai ?? false);
 
         return response()->json(['data' => $arr]);
     }
 
+    /**
+     * Warga mengajukan surat baru.
+     * Berkas diunggah TERPISAH per syarat: field `berkas[nama_syarat]`.
+     * Format yang diterima: PDF maupun foto (jpg/jpeg/png).
+     */
     public function store(Request $request)
     {
         $user = $request->user();
@@ -83,38 +97,82 @@ class SuratController extends Controller
 
         $kodeValid = JenisSurat::pluck('kode')->all();
 
-        $validator = Validator::make($request->all(), [
+        // Aturan dasar
+        $rules = [
             'jenis_surat' => ['required', 'string', Rule::in($kodeValid)],
             'keperluan' => ['required', 'string', 'max:1000'],
-            'dokumen_pendukung' => ['required', 'file', 'mimes:pdf', 'max:4096'],
             'client_time' => ['required', 'date'],
-        ]);
+        ];
+        $pesan = [];
+
+        // Aturan berkas mengikuti syarat jenis surat yang dipilih.
+        $jenis = JenisSurat::where('kode', $request->jenis_surat)->first();
+        $syarat = is_array($jenis?->syarat_required) ? $jenis->syarat_required : [];
+
+        if (count($syarat) > 0) {
+            foreach ($syarat as $key) {
+                $rules["berkas.$key"] =
+                    ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:4096'];
+                $label = ucwords(str_replace('_', ' ', $key));
+                $pesan["berkas.$key.required"] = "Berkas $label wajib diunggah.";
+                $pesan["berkas.$key.mimes"] = "Berkas $label harus PDF atau foto.";
+                $pesan["berkas.$key.max"] = "Ukuran berkas $label maksimal 4 MB.";
+            }
+        } else {
+            // Surat tanpa daftar syarat: pakai satu berkas pendukung.
+            $rules['dokumen_pendukung'] =
+                ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:4096'];
+        }
+
+        $validator = Validator::make($request->all(), $rules, $pesan);
 
         if ($validator->fails()) {
             return response()->json(['message' => 'Validasi gagal.', 'errors' => $validator->errors()], 422);
         }
 
-        // Cegah manipulasi waktu: waktu perangkat harus dekat dengan waktu server.
+        // Cegah manipulasi waktu perangkat.
         $selisih = abs(Carbon::now()->diffInSeconds(Carbon::parse($request->client_time)));
-        if ($selisih > 300) { // toleransi 5 menit
+        if ($selisih > 300) {
             return response()->json([
                 'message' => 'Waktu perangkat tidak sesuai. Aktifkan tanggal & jam otomatis, lalu coba lagi.',
             ], 422);
         }
 
-        $path = $request->file('dokumen_pendukung')->store('surat/dokumen_pendukung', 'public');
+        $pathUtama = null;
+        if ($request->hasFile('dokumen_pendukung')) {
+            $pathUtama = $request->file('dokumen_pendukung')
+                ->store('surat/dokumen_pendukung', 'public');
+        }
 
         $surat = SuratPengajuan::create([
             'user_id' => $user->id,
             'jenis_surat' => $request->jenis_surat,
             'keperluan' => $request->keperluan,
-            'dokumen_pendukung' => $path,
+            'dokumen_pendukung' => $pathUtama,
             'status' => 'diproses',
         ]);
 
+        // Simpan tiap berkas syarat.
+        foreach ($syarat as $key) {
+            $file = $request->file("berkas.$key");
+            if ($file) {
+                SuratBerkas::create([
+                    'surat_pengajuan_id' => $surat->id,
+                    'syarat_key' => $key,
+                    'file_path' => $file->store('surat/berkas', 'public'),
+                ]);
+            }
+        }
+
+        $pesanSukses = 'Proses pengajuan surat berhasil, menunggu proses validasi.';
+        if ($jenis && $jenis->perlu_materai) {
+            $pesanSukses .= ' Surat ini memerlukan materai — Anda akan dihubungi '
+                . 'admin melalui WhatsApp untuk datang ke kelurahan.';
+        }
+
         return response()->json([
-            'message' => 'Proses pengajuan surat berhasil, menunggu proses validasi.',
-            'data' => $surat,
+            'message' => $pesanSukses,
+            'data' => $surat->load('berkas'),
         ], 201);
     }
 }

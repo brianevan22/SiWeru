@@ -23,4 +23,10 @@ class SuratPengajuan extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    /// Berkas persyaratan yang diunggah terpisah per syarat.
+    public function berkas()
+    {
+        return $this->hasMany(SuratBerkas::class, 'surat_pengajuan_id');
+    }
 }

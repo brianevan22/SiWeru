@@ -1,10 +1,11 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/api_config.dart';
 import '../../core/app_theme.dart';
+import '../../core/image_helper.dart';
 import '../../models/info_surat_model.dart';
 import '../../models/info_surat_setting_model.dart';
 import '../../models/surat_model.dart';
@@ -56,12 +57,13 @@ class _InfoSuratScreenState extends State<InfoSuratScreen> {
   // ============ AKSI ADMIN ============
 
   Future<void> _editFoto(bool alur) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png'],
+    // Pilih dari galeri lalu potong. Layar crop sekaligus jadi konfirmasi,
+    // jadi foto tidak langsung terganti bila tombol tak sengaja tertekan.
+    final path = await pilihDanPotongFoto(
+      context,
+      sumber: ImageSource.gallery,
+      judul: alur ? 'Sesuaikan Gambar Alur' : 'Sesuaikan Gambar Syarat',
     );
-    if (result == null || result.files.isEmpty) return;
-    final path = result.files.first.path;
     if (path == null) return;
 
     try {
@@ -298,13 +300,23 @@ class _InfoSuratScreenState extends State<InfoSuratScreen> {
                 child: Container(
                   color: Colors.white,
                   width: double.infinity,
-                  child: Image(
-                    image: provider,
-                    width: double.infinity,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Image.asset(assetPath,
-                        width: double.infinity, fit: BoxFit.contain),
-                  ),
+                  child: url.isEmpty
+                      // Belum ada gambar dari admin: pakai bawaan aplikasi.
+                      ? Image.asset(assetPath,
+                          width: double.infinity, fit: BoxFit.contain)
+                      // Tampilkan bawaan dulu (instan), lalu berganti halus
+                      // ke gambar server begitu selesai dimuat.
+                      : FadeInImage(
+                          placeholder: AssetImage(assetPath),
+                          image: NetworkImage(url),
+                          width: double.infinity,
+                          fit: BoxFit.contain,
+                          fadeInDuration: const Duration(milliseconds: 250),
+                          imageErrorBuilder: (_, __, ___) => Image.asset(
+                              assetPath,
+                              width: double.infinity,
+                              fit: BoxFit.contain),
+                        ),
                 ),
               ),
               Positioned(
@@ -320,7 +332,8 @@ class _InfoSuratScreenState extends State<InfoSuratScreen> {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.zoom_in_map_rounded, color: Colors.white, size: 15),
+                      Icon(Icons.zoom_in_map_rounded,
+                          color: Colors.white, size: 15),
                       SizedBox(width: 4),
                       Text('Ketuk untuk perbesar',
                           style:
@@ -338,8 +351,8 @@ class _InfoSuratScreenState extends State<InfoSuratScreen> {
             onPressed: () => _editFoto(alur),
             icon: const Icon(Icons.edit, size: 16),
             label: const Text('Edit Foto'),
-            style:
-                OutlinedButton.styleFrom(foregroundColor: AppColors.primaryBlue),
+            style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primaryBlue),
           ),
           const Text('Format JPG/PNG, ukuran maksimal 4 MB.',
               style: TextStyle(fontSize: 11, color: Colors.black45)),
@@ -354,7 +367,8 @@ class _InfoSuratScreenState extends State<InfoSuratScreen> {
     if (!auth.isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Silakan login terlebih dahulu untuk membuat surat.')),
+            content:
+                Text('Silakan login terlebih dahulu untuk membuat surat.')),
       );
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -382,7 +396,9 @@ class _InfoSuratScreenState extends State<InfoSuratScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Gagal memuat data: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
+            return Center(
+                child: Text('Gagal memuat data: ${snapshot.error}',
+                    style: const TextStyle(color: Colors.white)));
           }
           final data = snapshot.data!;
           return SingleChildScrollView(
@@ -427,9 +443,11 @@ class _InfoSuratScreenState extends State<InfoSuratScreen> {
                         ],
                       ),
                       const SizedBox(height: 14),
-                      _gambarBlok(data.setting.gambarAlur,
+                      _gambarBlok(
+                          data.setting.gambarAlur,
                           'assets/images/alur_pelayanan.png',
-                          'Alur Pelayanan Digital', true),
+                          'Alur Pelayanan Digital',
+                          true),
                       const Divider(height: 24),
                       ...List.generate(data.alur.length, (i) {
                         final langkah = data.alur[i];
@@ -470,8 +488,7 @@ class _InfoSuratScreenState extends State<InfoSuratScreen> {
                                   child: const Padding(
                                     padding: EdgeInsets.all(4),
                                     child: Icon(Icons.edit,
-                                        size: 16,
-                                        color: AppColors.primaryBlue),
+                                        size: 16, color: AppColors.primaryBlue),
                                   ),
                                 ),
                                 InkWell(
@@ -536,9 +553,11 @@ class _InfoSuratScreenState extends State<InfoSuratScreen> {
                         ],
                       ),
                       const SizedBox(height: 14),
-                      _gambarBlok(data.setting.gambarSyarat,
+                      _gambarBlok(
+                          data.setting.gambarSyarat,
                           'assets/images/syarat_surat.png',
-                          'Persyaratan Dokumen', false),
+                          'Persyaratan Dokumen',
+                          false),
                       const Divider(height: 24),
                       if (data.jenisSurat.isEmpty)
                         const Padding(
@@ -581,8 +600,7 @@ class _InfoSuratScreenState extends State<InfoSuratScreen> {
                                           child: const Padding(
                                             padding: EdgeInsets.all(4),
                                             child: Icon(Icons.delete,
-                                                size: 18,
-                                                color: AppColors.red),
+                                                size: 18, color: AppColors.red),
                                           ),
                                         ),
                                       ],
@@ -615,7 +633,8 @@ class _InfoSuratScreenState extends State<InfoSuratScreen> {
                                               const Icon(
                                                   Icons.check_circle_rounded,
                                                   size: 15,
-                                                  color: AppColors.primaryGreen),
+                                                  color:
+                                                      AppColors.primaryGreen),
                                               const SizedBox(width: 6),
                                               Expanded(
                                                 child: Text(

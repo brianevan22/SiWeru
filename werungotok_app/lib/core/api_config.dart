@@ -15,7 +15,7 @@ class ApiConfig {
   ///
   /// GANTI nilai ini kalau IP laptop berubah (misal setelah reconnect WiFi).
   /// Hanya dipakai saat menjalankan aplikasi di HP FISIK.
-  static const String _lanIp = '192.168.0.104';
+  static const String _lanIp = ' 192.168.100.167';
 
   /// Set true kalau sedang testing di EMULATOR Android (bukan HP fisik).
   /// Biarkan false kalau pakai HP fisik.

@@ -65,12 +65,14 @@ class AdminService {
     String? keterangan,
     required List<String> syarat,
     required bool isActive,
+    bool perluMaterai = false,
   }) async {
     final fields = <String, String>{
       'nama_surat': namaSurat,
       'keterangan': keterangan ?? '',
       'syarat_required': jsonEncode(syarat),
       'is_active': isActive ? '1' : '0',
+      'perlu_materai': perluMaterai ? '1' : '0',
       if (id != null) '_method': 'PUT',
     };
     final path = id == null ? '/admin/jenis-surat' : '/admin/jenis-surat/$id';

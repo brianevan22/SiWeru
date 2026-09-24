@@ -68,6 +68,7 @@ class AdminController extends Controller
     {
         $query = SuratPengajuan::with([
             'user:id,name,nama,wa,alamat,foto_profil,ktp_photo,ktp_status',
+            'berkas',
         ])->latest();
 
         if ($request->filled('status')) {
@@ -75,11 +76,13 @@ class AdminController extends Controller
         }
 
         $list = $query->get();
-        $map = JenisSurat::pluck('nama_surat', 'kode');
+        $jenis = JenisSurat::get()->keyBy('kode');
 
-        $data = $list->map(function ($s) use ($map) {
+        $data = $list->map(function ($s) use ($jenis) {
             $arr = $s->toArray();
-            $arr['nama_surat'] = $map[$s->jenis_surat] ?? $s->jenis_surat;
+            $j = $jenis[$s->jenis_surat] ?? null;
+            $arr['nama_surat'] = $j->nama_surat ?? $s->jenis_surat;
+            $arr['perlu_materai'] = (bool) ($j->perlu_materai ?? false);
             return $arr;
         });
 

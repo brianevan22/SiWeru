@@ -52,12 +52,26 @@ class SuratService {
     return (res['data'] as List).map((e) => SuratModel.fromJson(e)).toList();
   }
 
+  /// Ajukan surat. [berkas] berisi pasangan syarat -> path file.
+  /// Kalau jenis surat tidak punya syarat, pakai [dokumenPath] sebagai
+  /// satu berkas pendukung.
   Future<SuratModel> ajukan({
     required String jenisSurat,
     required String keperluan,
     required String clientTime,
-    required String dokumenPath,
+    Map<String, String>? berkas,
+    String? dokumenPath,
   }) async {
+    final files = <String, String>{};
+    if (berkas != null) {
+      berkas.forEach((key, path) {
+        files['berkas[$key]'] = path;
+      });
+    }
+    if (dokumenPath != null) {
+      files['dokumen_pendukung'] = dokumenPath;
+    }
+
     final res = await client.postMultipart(
       '/surat',
       fields: {
@@ -65,7 +79,7 @@ class SuratService {
         'keperluan': keperluan,
         'client_time': clientTime,
       },
-      files: {'dokumen_pendukung': dokumenPath},
+      files: files,
     );
     return SuratModel.fromJson(res['data']);
   }

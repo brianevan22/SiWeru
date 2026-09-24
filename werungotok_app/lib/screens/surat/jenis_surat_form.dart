@@ -66,6 +66,7 @@ class _JenisSuratFormState extends State<JenisSuratForm> {
   final _syaratBebasCtrl = TextEditingController();
   final Set<String> _syaratBaku = {};
   final List<String> _syaratBebas = [];
+  bool _perluMaterai = false;
   bool _saving = false;
 
   @override
@@ -75,6 +76,7 @@ class _JenisSuratFormState extends State<JenisSuratForm> {
     if (e != null) {
       _namaCtrl.text = e.namaSurat;
       _keteranganCtrl.text = e.keterangan ?? '';
+      _perluMaterai = e.perluMaterai;
       for (final s in e.syaratRequired) {
         if (kSyaratBaku.containsKey(s)) {
           _syaratBaku.add(s);
@@ -119,6 +121,7 @@ class _JenisSuratFormState extends State<JenisSuratForm> {
             : _keteranganCtrl.text.trim(),
         syarat: syarat,
         isActive: true,
+        perluMaterai: _perluMaterai,
       );
       if (!mounted) return;
       Navigator.pop(context);
@@ -245,7 +248,22 @@ class _JenisSuratFormState extends State<JenisSuratForm> {
                         .toList(),
                   ),
                 ],
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: _perluMaterai,
+                  activeColor: AppColors.primaryGreen,
+                  title: const Text('Surat ini memerlukan materai',
+                      style: TextStyle(fontSize: 13)),
+                  subtitle: const Text(
+                      'Warga akan diberi tahu untuk datang ke kelurahan '
+                      'menandatangani & menempel materai.',
+                      style: TextStyle(fontSize: 11, color: Colors.black54)),
+                  onChanged: (v) => setState(() => _perluMaterai = v ?? false),
+                ),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
